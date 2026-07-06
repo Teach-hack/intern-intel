@@ -5,6 +5,7 @@ from contextlib import contextmanager
 
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.core.logger import logger
 from app.database.database import engine
 
 SessionLocal = sessionmaker(
@@ -27,8 +28,8 @@ def get_session() -> Generator[Session, None, None]:
     try:
         yield session
         session.commit()
-    except Exception as exc:
-        # TODO: Log exc once the logging module is implemented.
+    except Exception:
+        logger.exception("Database session failed")
         session.rollback()
         raise
     finally:

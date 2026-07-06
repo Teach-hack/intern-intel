@@ -2,24 +2,19 @@
 
 from pathlib import Path
 
-import yaml
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 
-_SETTINGS_PATH = Path(__file__).resolve().parent.parent / "config" / "settings.yaml"
+from app.core.config import settings
+
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
 
 def _load_database_path() -> Path:
-    """Read the SQLite database file path from settings.yaml."""
-    with _SETTINGS_PATH.open(encoding="utf-8") as settings_file:
-        settings = yaml.safe_load(settings_file)
-
-    database_path = (settings or {}).get("database", {}).get("path")
+    """Read the SQLite database file path from application settings."""
+    database_path = settings.get("database.path")
     if not database_path:
-        raise ValueError(
-            f"'database.path' is missing or empty in {_SETTINGS_PATH}"
-        )
+        raise ValueError("'database.path' is missing or empty in application settings.")
 
     return _PROJECT_ROOT / database_path
 
