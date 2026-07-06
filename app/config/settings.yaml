@@ -1,0 +1,16 @@
+app:
+  name: InternIntel
+  version: 0.1.0
+
+database:
+  path: data/database/internships.db
+
+scraper:
+  timeout: 30
+  user_agent: InternIntelBot/1.0
+
+notification:
+  telegram: false
+
+logging:
+  level: INFO

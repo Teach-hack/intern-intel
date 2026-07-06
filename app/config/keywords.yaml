@@ -1,0 +1,25 @@
+include:
+  - python
+  - django
+  - flask
+  - fastapi
+  - html
+  - css
+  - javascript
+  - react
+  - node
+  - backend
+  - frontend
+  - full stack
+  - ai
+  - machine learning
+  - software engineer
+
+exclude:
+  - hr
+  - marketing
+  - sales
+  - finance
+  - civil
+  - mechanical
+  - mba
