@@ -225,7 +225,7 @@ def test_normalize_failures() -> None:
 
     # Not a dict
     with pytest.raises(ScraperParsingError, match="Raw listing is not a dictionary"):
-        scraper.normalize([])  # type: ignore
+        scraper.normalize([])  # type: ignore[arg-type] # pyright: ignore[reportArgumentType]
 
     # Missing text/title
     with pytest.raises(ScraperParsingError, match="Missing or invalid 'text'"):

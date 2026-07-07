@@ -6,6 +6,7 @@ from typing import Any
 
 from app.core.base_scraper import BaseScraper
 from app.core.exceptions import ScraperError
+from app.core.http_client import HttpClient
 from app.core.logger import logger
 
 __all__ = ["ScraperService"]
@@ -18,9 +19,13 @@ class ScraperService:
     and handling failures gracefully.
     """
 
-    def __init__(self) -> None:
-        """Initialize the ScraperService."""
-        pass
+    def __init__(self, http_client: HttpClient) -> None:
+        """Initialize the ScraperService.
+
+        Args:
+            http_client: Centralized HTTP client instance.
+        """
+        self._http_client = http_client
 
     def scrape(self, scraper: BaseScraper) -> list[dict[str, Any]]:
         """Run a single scraper and return its normalized listings.
@@ -60,8 +65,8 @@ class ScraperService:
     def scrape_many(self, scrapers: list[BaseScraper]) -> list[dict[str, Any]]:
         """Run multiple scrapers sequentially and combine their results.
 
-        If an individual scraper fails, the failure is logged and execution
-        continues with the remaining scrapers.
+        If an individual scraper fails with ``ScraperError``, the failure is
+        logged and execution continues with the remaining scrapers.
 
         Args:
             scrapers: List of scraper instances to execute.

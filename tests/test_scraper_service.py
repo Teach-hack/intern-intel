@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, final
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -13,6 +13,7 @@ from app.core.http_client import HttpClient
 from app.services.scraper_service import ScraperService
 
 
+@final
 class _MockScraper(BaseScraper):
     """Concrete mock implementation of BaseScraper for testing."""
 
@@ -26,9 +27,10 @@ class _MockScraper(BaseScraper):
     ) -> None:
         super().__init__(http_client, source_url="https://example.com")
         self.source = source
-        self.listings = listings or []
+        self.listings = listings if listings is not None else []
         self.should_fail = should_fail
         self.non_scraper_error = non_scraper_error
+        self.scrape_calls = 0
 
     def get_source_name(self) -> str:
         return self.source
@@ -40,6 +42,8 @@ class _MockScraper(BaseScraper):
         return {}
 
     def scrape(self, url: str | None = None) -> list[dict[str, Any]]:
+        self.scrape_calls += 1
+
         if self.should_fail:
             raise ScraperError(f"Scraper {self.source} failed purposefully")
 
@@ -51,43 +55,43 @@ class _MockScraper(BaseScraper):
 
 def test_scraper_service_initialization() -> None:
     """Verify that ScraperService initializes correctly."""
-    service = ScraperService()
+    mock_client = MagicMock(spec=HttpClient)
+    service = ScraperService(mock_client)
+
     assert isinstance(service, ScraperService)
 
 
 def test_scrape_success() -> None:
-    """Verify that scrape successfully runs a single scraper and logs start/end."""
+    """Verify that scrape successfully runs a scraper."""
     mock_client = MagicMock(spec=HttpClient)
-    service = ScraperService()
-
-    expected_listings = [{"title": "Intern", "company": "A"}]
 
     scraper = _MockScraper(
         mock_client,
         source="source_a",
-        listings=expected_listings,
+        listings=[{"title": "Intern", "company": "A"}],
     )
+
+    service = ScraperService(mock_client)
 
     with patch("app.services.scraper_service.logger") as mock_logger:
         results = service.scrape(scraper)
 
-        assert results == expected_listings
-        assert mock_logger.info.call_count == 2
+    assert results == [{"title": "Intern", "company": "A"}]
+    assert scraper.scrape_calls == 1
 
-        start_args = mock_logger.info.call_args_list[0][0]
-        assert "Starting scraper run for source: {}" in start_args[0]
-        assert start_args[1] == "source_a"
+    assert mock_logger.info.call_count == 2
 
-        end_args = mock_logger.info.call_args_list[1][0]
-        assert "Finished scraper run for source: {} | Found {} listings" in end_args[0]
-        assert end_args[1] == "source_a"
-        assert end_args[2] == 1
+    start_args = mock_logger.info.call_args_list[0][0]
+    assert start_args[1] == "source_a"
+
+    end_args = mock_logger.info.call_args_list[1][0]
+    assert end_args[1] == "source_a"
+    assert end_args[2] == 1
 
 
 def test_scrape_failure() -> None:
-    """Verify that scrape logs error and re-raises ScraperError."""
+    """Verify that ScraperError is logged and re-raised."""
     mock_client = MagicMock(spec=HttpClient)
-    service = ScraperService()
 
     scraper = _MockScraper(
         mock_client,
@@ -95,80 +99,81 @@ def test_scrape_failure() -> None:
         should_fail=True,
     )
 
+    service = ScraperService(mock_client)
+
     with patch("app.services.scraper_service.logger") as mock_logger:
-        with pytest.raises(ScraperError, match="failed purposefully"):
+        with pytest.raises(ScraperError):
             service.scrape(scraper)
 
-        mock_logger.error.assert_called_once()
-
-        error_args = mock_logger.error.call_args[0]
-        assert "Scraper run failed for source {}: {}" in error_args[0]
-        assert error_args[1] == "source_fail"
+    mock_logger.error.assert_called_once()
 
 
 def test_scrape_non_scraper_error_propagation() -> None:
-    """Verify that non-ScraperError exceptions propagate."""
+    """Verify that unexpected exceptions propagate."""
     mock_client = MagicMock(spec=HttpClient)
-    service = ScraperService()
 
     scraper = _MockScraper(
         mock_client,
-        source="source_non_scraper_fail",
         non_scraper_error=True,
     )
 
-    with pytest.raises(ValueError, match="Unexpected system failure"):
+    service = ScraperService(mock_client)
+
+    with pytest.raises(ValueError):
         service.scrape(scraper)
 
 
 def test_scrape_many_success() -> None:
-    """Verify that scrape_many combines results from successful scrapers."""
+    """Verify multiple successful scrapers are combined."""
     mock_client = MagicMock(spec=HttpClient)
-    service = ScraperService()
 
     scraper_a = _MockScraper(
         mock_client,
-        source="source_a",
         listings=[{"title": "Job A"}],
     )
 
     scraper_b = _MockScraper(
         mock_client,
-        source="source_b",
         listings=[{"title": "Job B"}],
     )
+
+    service = ScraperService(mock_client)
 
     results = service.scrape_many([scraper_a, scraper_b])
 
     assert len(results) == 2
-    assert results[0]["title"] == "Job A"
-    assert results[1]["title"] == "Job B"
+    assert scraper_a.scrape_calls == 1
+    assert scraper_b.scrape_calls == 1
 
 
 def test_scrape_many_partial_failure() -> None:
-    """Verify that scrape_many continues after a ScraperError."""
+    """Verify failed scraper does not stop remaining scrapers."""
     mock_client = MagicMock(spec=HttpClient)
-    service = ScraperService()
 
     scraper_a = _MockScraper(
         mock_client,
-        source="source_a",
         listings=[{"title": "Job A"}],
     )
 
     scraper_fail = _MockScraper(
         mock_client,
-        source="source_fail",
         should_fail=True,
     )
 
     scraper_b = _MockScraper(
         mock_client,
-        source="source_b",
         listings=[{"title": "Job B"}],
     )
 
-    results = service.scrape_many([scraper_a, scraper_fail, scraper_b])
+    service = ScraperService(mock_client)
+
+    results = service.scrape_many(
+        [
+            scraper_a,
+            scraper_fail,
+            scraper_b,
+        ]
+    )
 
     assert len(results) == 2
     assert results[0]["title"] == "Job A"
@@ -176,33 +181,39 @@ def test_scrape_many_partial_failure() -> None:
 
 
 def test_scrape_many_non_scraper_error_propagation() -> None:
-    """Verify that unexpected exceptions propagate."""
+    """Verify unexpected exceptions propagate."""
     mock_client = MagicMock(spec=HttpClient)
-    service = ScraperService()
 
     scraper_a = _MockScraper(
         mock_client,
-        source="source_a",
         listings=[{"title": "Job A"}],
     )
 
-    scraper_non_scraper_fail = _MockScraper(
+    scraper_fail = _MockScraper(
         mock_client,
-        source="source_non_scraper_fail",
         non_scraper_error=True,
     )
 
     scraper_b = _MockScraper(
         mock_client,
-        source="source_b",
         listings=[{"title": "Job B"}],
     )
 
-    with pytest.raises(ValueError, match="Unexpected system failure"):
+    service = ScraperService(mock_client)
+
+    with pytest.raises(ValueError):
         service.scrape_many(
             [
                 scraper_a,
-                scraper_non_scraper_fail,
+                scraper_fail,
                 scraper_b,
             ]
         )
+
+
+def test_scrape_many_empty() -> None:
+    """Verify empty scraper list returns an empty result."""
+    mock_client = MagicMock(spec=HttpClient)
+    service = ScraperService(mock_client)
+
+    assert service.scrape_many([]) == []

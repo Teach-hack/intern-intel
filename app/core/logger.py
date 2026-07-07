@@ -31,10 +31,7 @@ _VALID_LOG_LEVELS: Final[set[str]] = {
 }
 
 _LOG_FORMAT: Final[str] = (
-    "{time:YYYY-MM-DD HH:mm:ss} | "
-    "{level:<8} | "
-    "{name}:{function}:{line} | "
-    "{message}"
+    "{time:YYYY-MM-DD HH:mm:ss} | {level:<8} | {name}:{function}:{line} | {message}"
 )
 
 _FILE_ROTATION: Final[str] = "10 MB"

@@ -10,7 +10,10 @@ from unittest.mock import MagicMock, patch
 import httpx
 import pytest
 
-from app.core.exceptions import ScraperParsingError
+from app.core.exceptions import (
+    ScraperBlockedError,
+    ScraperParsingError,
+)
 from app.core.http_client import HttpClient
 from app.scrapers.greenhouse import GreenhouseScraper
 
@@ -19,7 +22,7 @@ def test_initialization() -> None:
     """Verify that initialization sets properties correctly."""
     mock_http = MagicMock(spec=HttpClient)
 
-    # Check default company_name
+    # Check explicit company_name
     scraper = GreenhouseScraper(mock_http, board_token="google")
     assert scraper.board_token == "google"
     assert scraper.company_name == "google"
@@ -196,7 +199,7 @@ def test_normalize_failures() -> None:
 
     # Not a dict
     with pytest.raises(ScraperParsingError, match="Raw listing is not a dictionary"):
-        scraper.normalize([])  # type: ignore
+        scraper.normalize("not a dict")  # type: ignore[arg-type]
 
     # Missing title
     with pytest.raises(ScraperParsingError, match="Missing or invalid 'title'"):
@@ -340,7 +343,6 @@ def test_scrape_blocked_403() -> None:
     mock_http.get.return_value = mock_response
 
     scraper = GreenhouseScraper(mock_http, board_token="test")
-    from app.core.exceptions import ScraperBlockedError
 
     with pytest.raises(ScraperBlockedError, match="blocked with status code 403"):
         scraper.scrape()
@@ -355,7 +357,6 @@ def test_scrape_blocked_429() -> None:
     mock_http.get.return_value = mock_response
 
     scraper = GreenhouseScraper(mock_http, board_token="test")
-    from app.core.exceptions import ScraperBlockedError
 
     with pytest.raises(ScraperBlockedError, match="blocked with status code 429"):
         scraper.scrape()

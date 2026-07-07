@@ -102,15 +102,14 @@ class BaseScraper(abc.ABC):
                 )
                 failed_normalize_count += 1
                 continue
-            except (KeyError, IndexError, ValueError, TypeError) as exc:
-                logger.warning(
-                    "Unexpected parsing error during normalization in source {}: {}",
+            except Exception as exc:
+                logger.exception(
+                    "Unexpected normalization failure for source {}: {}",
                     source_name,
                     exc,
                 )
                 failed_normalize_count += 1
                 continue
-
             if self.validate(normalized):
                 validated_listings.append(normalized)
             else:
@@ -146,6 +145,13 @@ class BaseScraper(abc.ABC):
         """
         source_name = self.get_source_name()
         response = self._http_client.get(url)
+
+        logger.debug(
+            "Fetched page for source {} from {} with status {}",
+            source_name,
+            url,
+            response.status_code,
+        )
         if response.status_code in _BLOCKED_STATUS_CODES:
             logger.error(
                 "Blocked by target site for source: {} URL: {} Status: {}",
@@ -209,7 +215,8 @@ class BaseScraper(abc.ABC):
         for field in _REQUIRED_VALIDATION_FIELDS:
             if field not in listing:
                 logger.warning(
-                    "[{}] Validation failed: missing required field '{}' (title: {}, url: {})",
+                    "[{}] Validation failed: missing required field '{}' "
+                    "(title={}, url={})",
                     source_name,
                     field,
                     listing.get("title", "<unknown>"),
@@ -219,8 +226,8 @@ class BaseScraper(abc.ABC):
             val = listing[field]
             if not isinstance(val, str) or not val.strip():
                 logger.warning(
-                    "[{}] Validation failed: required field '{}' is empty or not a string "
-                    "(title: {}, url: {})",
+                    "[{}] Validation failed: required field '{}' is empty or invalid "
+                    "(title={}, url={})",
                     source_name,
                     field,
                     listing.get("title", "<unknown>"),

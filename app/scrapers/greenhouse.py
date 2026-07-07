@@ -37,7 +37,10 @@ class GreenhouseScraper(BaseScraper):
         """
         self.board_token = board_token
         self.company_name = company_name or board_token
-        source_url = f"https://boards-api.greenhouse.io/v1/boards/{board_token}/jobs?content=true&pay_transparency=true"
+        source_url = (
+            "https://boards-api.greenhouse.io/v1/boards/"
+            f"{board_token}/jobs?content=true&pay_transparency=true"
+        )
         super().__init__(http_client, source_url=source_url)
 
     def get_source_name(self) -> str:
@@ -68,12 +71,12 @@ class GreenhouseScraper(BaseScraper):
         if not isinstance(data, dict):
             raise ScraperParsingError("Greenhouse API response is not a JSON object")
 
-        if "jobs" not in data:
+        jobs = data.get("jobs")
+
+        if jobs is None:
             raise ScraperParsingError(
                 "Greenhouse API response is missing the 'jobs' key"
             )
-
-        jobs = data["jobs"]
         if not isinstance(jobs, list):
             raise ScraperParsingError(
                 "Greenhouse API response 'jobs' field is not a list"
