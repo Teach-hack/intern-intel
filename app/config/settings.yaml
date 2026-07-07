@@ -9,6 +9,9 @@ scraper:
   timeout: 30
   user_agent: InternIntelBot/1.0
 
+http:
+  follow_redirects: true
+
 notification:
   telegram: false
 

@@ -11,7 +11,7 @@ from loguru import logger as _logger
 from app.core.config import settings
 
 if TYPE_CHECKING:
-    from loguru._logger import Logger
+    from loguru import Logger
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 

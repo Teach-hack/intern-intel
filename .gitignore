@@ -1,5 +1,6 @@
 # Virtual Environment
 .venv/
+venv/
 
 # Python
 __pycache__/
@@ -9,6 +10,7 @@ __pycache__/
 
 # Environment
 .env
+.env.*
 
 # Database
 *.db
@@ -16,16 +18,36 @@ __pycache__/
 
 # Logs
 *.log
-
-# macOS
-.DS_Store
-
-# VS Code
-.vscode/
+logs/
 
 # Reports
 reports/*.html
 reports/*.pdf
 
-# Test cache
+# Cache
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Coverage
+.coverage
+coverage.xml
+htmlcov/
+
+# Build
+build/
+dist/
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+
+# macOS
+.DS_Store
+
+# PyInstaller
+*.spec
+
+# Jupyter
+.ipynb_checkpoints/

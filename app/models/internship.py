@@ -18,7 +18,11 @@ class Internship(Base):
 
     __tablename__ = "internships"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+        autoincrement=True,
+    )
     company: Mapped[str] = mapped_column(
         String(100),
         index=True,
@@ -84,6 +88,7 @@ class Internship(Base):
     last_seen: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=_utc_now,
+        onupdate=_utc_now,
         comment="UTC timestamp when this listing was last observed in a scrape",
     )
     created_at: Mapped[datetime] = mapped_column(
