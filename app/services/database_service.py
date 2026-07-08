@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from collections.abc import Generator
 from contextlib import contextmanager
-from typing import TYPE_CHECKING
+from datetime import date
+from typing import Any, TYPE_CHECKING
 
 from app.core.logger import logger
 from app.database.repository import InternshipRepository
@@ -163,3 +164,141 @@ class DatabaseService:
         logger.info("Deleted {} internship listings.", deleted)
 
         return deleted
+
+    def query_internships(
+        self,
+        skip: int = 0,
+        limit: int = 100,
+        sort_by: str | None = None,
+        order: str = "asc",
+        company: str | None = None,
+        location: str | None = None,
+        employment_type: str | None = None,
+        source: str | None = None,
+        search: str | None = None,
+        date_from: date | None = None,
+        date_to: date | None = None,
+    ) -> list[Internship]:
+        """Query and filter internships using various criteria.
+
+        Args:
+            skip: Number of records to skip.
+            limit: Maximum number of records to return.
+            sort_by: Field name to sort by.
+            order: Sort order ("asc" or "desc").
+            company: Filter by company name.
+            location: Filter by location (case-insensitive substring).
+            employment_type: Filter by employment type.
+            source: Filter by scraper source.
+            search: Search query string to match in title, company, or skills.
+            date_from: Only return internships posted on or after this date.
+            date_to: Only return internships posted on or before this date.
+
+        Returns:
+            List of matching Internship objects.
+        """
+        from sqlalchemy import and_, func, or_, select
+
+        from app.models.internship import Internship
+
+        with self._repository() as repo:
+            session = repo._session
+            stmt = select(Internship)
+            conditions = []
+
+            if company:
+                conditions.append(
+                    func.lower(Internship.company) == company.lower().strip()
+                )
+            if location:
+                conditions.append(
+                    func.lower(Internship.location).like(
+                        f"%{location.lower().strip()}%"
+                    )
+                )
+            if employment_type:
+                conditions.append(
+                    func.lower(Internship.employment_type)
+                    == employment_type.lower().strip()
+                )
+            if source:
+                conditions.append(
+                    func.lower(Internship.source) == source.lower().strip()
+                )
+            if date_from:
+                conditions.append(Internship.posted_date >= date_from)
+            if date_to:
+                conditions.append(Internship.posted_date <= date_to)
+
+            if search:
+                search_term = f"%{search.lower().strip()}%"
+                conditions.append(
+                    or_(
+                        func.lower(Internship.title).like(search_term),
+                        func.lower(Internship.company).like(search_term),
+                        func.lower(Internship.skills).like(search_term),
+                    )
+                )
+
+            if conditions:
+                stmt = stmt.where(and_(*conditions))
+
+            # Sorting
+            if sort_by and hasattr(Internship, sort_by):
+                col = getattr(Internship, sort_by)
+                if order.lower() == "desc":
+                    stmt = stmt.order_by(col.desc())
+                else:
+                    stmt = stmt.order_by(col.asc())
+            else:
+                stmt = stmt.order_by(Internship.id.asc())
+
+            stmt = stmt.offset(skip).limit(limit)
+            return list(session.scalars(stmt).all())
+
+    def get_statistics(self) -> dict[str, Any]:
+        """Gather database statistics for internships.
+
+        Returns:
+            Dictionary containing metrics: total, new_today, companies, sources breakdown.
+        """
+        from datetime import date
+        from sqlalchemy import func, select
+
+        from app.models.internship import Internship
+
+        with self._repository() as repo:
+            session = repo._session
+
+            # 1. Total internships
+            total = session.scalar(select(func.count(Internship.id))) or 0
+
+            # 2. New today (created today)
+            new_today = (
+                session.scalar(
+                    select(func.count(Internship.id)).where(
+                        func.date(Internship.created_at) == date.today()
+                    )
+                )
+                or 0
+            )
+
+            # 3. Unique companies
+            unique_companies = (
+                session.scalar(select(func.count(func.distinct(Internship.company))))
+                or 0
+            )
+
+            # 4. Source breakdown
+            sources_stmt = select(
+                Internship.source, func.count(Internship.id)
+            ).group_by(Internship.source)
+            sources_res = session.execute(sources_stmt).all()
+            sources_breakdown = {source: count for source, count in sources_res}
+
+            return {
+                "total": total,
+                "new_today": new_today,
+                "companies": unique_companies,
+                "sources": sources_breakdown,
+            }

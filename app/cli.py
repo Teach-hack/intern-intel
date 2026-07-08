@@ -212,12 +212,82 @@ class CLI:
         print(f"Scheduler Interval: {interval}s")
 
         # Registered Scrapers
-        from app.registry import create_default_registry
+        from app.registry import create_default_registry, SCRAPER_FACTORIES
+        from app.core.config_validator import ConfigValidator
 
         registry = create_default_registry(settings=active_settings)
+        all_scrapers = list(SCRAPER_FACTORIES.keys())
+
+        enabled_scrapers = []
+        for name in all_scrapers:
+            default_enabled = name in ("greenhouse", "lever")
+            enabled_val = active_settings.get(f"scrapers.{name}.enabled")
+            if enabled_val is None:
+                try:
+                    is_enabled = bool(
+                        getattr(active_settings, f"{name}_enabled", default_enabled)
+                    )
+                except AttributeError:
+                    is_enabled = default_enabled
+            else:
+                if isinstance(enabled_val, str):
+                    is_enabled = enabled_val.lower() in ("true", "1", "yes")
+                else:
+                    is_enabled = bool(enabled_val)
+            if is_enabled:
+                enabled_scrapers.append(name)
+
+        disabled_scrapers = [
+            name for name in all_scrapers if name not in enabled_scrapers
+        ]
+
         print(f"Registered Scrapers: {', '.join(registry.list_names())}")
+        print(f"Enabled Scrapers: {', '.join(enabled_scrapers)}")
+        print(f"Disabled Scrapers: {', '.join(disabled_scrapers)}")
+
+        validator = ConfigValidator()
+        res = validator.validate(active_settings)
+        if not res.is_valid:
+            print("[ERROR] Configuration validation errors found:")
+            for error in res.errors:
+                print(f" - {error}")
+            is_valid = False
 
         return 0 if is_valid else 1
+
+    def serve(
+        self,
+        host: str | None = None,
+        port: int | None = None,
+        reload: bool = False,
+    ) -> int:
+        """Start the FastAPI REST API web server using Uvicorn.
+
+        Args:
+            host: IP address to bind.
+            port: Port number to bind.
+            reload: Enable auto-reload of code changes.
+
+        Returns:
+            Exit code.
+        """
+        import uvicorn
+
+        logger.info("Executing CLI 'serve' command.")
+        active_settings = self._active_settings
+
+        # Fallback to configured defaults if not overridden in CLI args
+        bind_host = host or active_settings.api_host
+        bind_port = port or active_settings.api_port
+
+        logger.info(
+            "Starting API server on {}:{} (reload={})",
+            bind_host,
+            bind_port,
+            reload,
+        )
+        uvicorn.run("app.api:app", host=bind_host, port=bind_port, reload=reload)
+        return 0
 
     def _get_migration_service(self) -> Any:
         """Lazily retrieve MigrationService."""
@@ -252,6 +322,16 @@ class CLI:
         subparsers.add_parser("scheduler", help="Start the periodic interval scheduler")
         subparsers.add_parser("version", help="Print the current application version")
         subparsers.add_parser("doctor", help="Run diagnostic validation checks")
+
+        # serve command
+        serve_parser = subparsers.add_parser(
+            "serve", help="Start the FastAPI REST API web server"
+        )
+        serve_parser.add_argument("--host", help="IP address to bind the server")
+        serve_parser.add_argument("--port", type=int, help="Port to bind the server")
+        serve_parser.add_argument(
+            "--reload", action="store_true", help="Enable auto-reload on code change"
+        )
 
         # DB commands
         db_parser = subparsers.add_parser("db", help="Database migration commands")
@@ -310,6 +390,12 @@ class CLI:
             return self.version()
         if cmd == "doctor":
             return self.doctor()
+        if cmd == "serve":
+            return self.serve(
+                host=parsed_args.host,
+                port=parsed_args.port,
+                reload=parsed_args.reload,
+            )
 
         if cmd == "db":
             ms = self._get_migration_service()

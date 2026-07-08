@@ -179,9 +179,171 @@ class Settings:
         return str(val)
 
     @property
+    def greenhouse_enabled(self) -> bool:
+        """Check if Greenhouse scraper is enabled."""
+        val = os.environ.get("GREENHOUSE_ENABLED") or self.get(
+            "scrapers.greenhouse.enabled", True
+        )
+        if isinstance(val, str):
+            return val.lower() in ("true", "1", "yes")
+        return bool(val)
+
+    @property
     def lever_site_slug(self) -> str:
-        """Lever board slug."""
+        """Lever site slug."""
         val = os.environ.get("LEVER_SITE_SLUG") or self.get(
             "scrapers.lever.site_slug", "veriff"
         )
         return str(val)
+
+    @property
+    def lever_enabled(self) -> bool:
+        """Check if Lever scraper is enabled."""
+        val = os.environ.get("LEVER_ENABLED") or self.get(
+            "scrapers.lever.enabled", True
+        )
+        if isinstance(val, str):
+            return val.lower() in ("true", "1", "yes")
+        return bool(val)
+
+    @property
+    def workday_tenant(self) -> str:
+        """Workday tenant ID."""
+        val = os.environ.get("WORKDAY_TENANT") or self.get(
+            "scrapers.workday.tenant", ""
+        )
+        return str(val)
+
+    @property
+    def workday_parent_site_id(self) -> str:
+        """Workday parent site ID."""
+        val = os.environ.get("WORKDAY_PARENT_SITE_ID") or self.get(
+            "scrapers.workday.parent_site_id", ""
+        )
+        return str(val)
+
+    @property
+    def workday_enabled(self) -> bool:
+        """Check if Workday scraper is enabled."""
+        val = os.environ.get("WORKDAY_ENABLED") or self.get(
+            "scrapers.workday.enabled", False
+        )
+        if isinstance(val, str):
+            return val.lower() in ("true", "1", "yes")
+        return bool(val)
+
+    @property
+    def ashby_company_id(self) -> str:
+        """Ashby company ID."""
+        val = os.environ.get("ASHBY_COMPANY_ID") or self.get(
+            "scrapers.ashby.company_id", ""
+        )
+        return str(val)
+
+    @property
+    def ashby_enabled(self) -> bool:
+        """Check if Ashby scraper is enabled."""
+        val = os.environ.get("ASHBY_ENABLED") or self.get(
+            "scrapers.ashby.enabled", False
+        )
+        if isinstance(val, str):
+            return val.lower() in ("true", "1", "yes")
+        return bool(val)
+
+    @property
+    def smartrecruiters_company_id(self) -> str:
+        """SmartRecruiters company ID."""
+        val = os.environ.get("SMARTRECRUITERS_COMPANY_ID") or self.get(
+            "scrapers.smartrecruiters.company_id", ""
+        )
+        return str(val)
+
+    @property
+    def smartrecruiters_enabled(self) -> bool:
+        """Check if SmartRecruiters scraper is enabled."""
+        val = os.environ.get("SMARTRECRUITERS_ENABLED") or self.get(
+            "scrapers.smartrecruiters.enabled", False
+        )
+        if isinstance(val, str):
+            return val.lower() in ("true", "1", "yes")
+        return bool(val)
+
+    @property
+    def icims_company_id(self) -> str:
+        """iCIMS company ID."""
+        val = os.environ.get("ICIMS_COMPANY_ID") or self.get(
+            "scrapers.icims.company_id", ""
+        )
+        return str(val)
+
+    @property
+    def icims_enabled(self) -> bool:
+        """Check if iCIMS scraper is enabled."""
+        val = os.environ.get("ICIMS_ENABLED") or self.get(
+            "scrapers.icims.enabled", False
+        )
+        if isinstance(val, str):
+            return val.lower() in ("true", "1", "yes")
+        return bool(val)
+
+    @property
+    def oracle_company_id(self) -> str:
+        """Oracle company ID."""
+        val = os.environ.get("ORACLE_COMPANY_ID") or self.get(
+            "scrapers.oracle.company_id", ""
+        )
+        return str(val)
+
+    @property
+    def oracle_enabled(self) -> bool:
+        """Check if Oracle scraper is enabled."""
+        val = os.environ.get("ORACLE_ENABLED") or self.get(
+            "scrapers.oracle.enabled", False
+        )
+        if isinstance(val, str):
+            return val.lower() in ("true", "1", "yes")
+        return bool(val)
+
+    @property
+    def successfactors_company_id(self) -> str:
+        """SuccessFactors company ID."""
+        val = os.environ.get("SUCCESSFACTORS_COMPANY_ID") or self.get(
+            "scrapers.successfactors.company_id", ""
+        )
+        return str(val)
+
+    @property
+    def successfactors_enabled(self) -> bool:
+        """Check if SuccessFactors scraper is enabled."""
+        val = os.environ.get("SUCCESSFACTORS_ENABLED") or self.get(
+            "scrapers.successfactors.enabled", False
+        )
+        if isinstance(val, str):
+            return val.lower() in ("true", "1", "yes")
+        return bool(val)
+
+    API_PREFIX: str = "/api/v1"
+    API_VERSION: str = "1.0.0"
+
+    @property
+    def api_host(self) -> str:
+        """API server host."""
+        val = os.environ.get("API_HOST") or self.get("api.host", "127.0.0.1")
+        return str(val)
+
+    @property
+    def api_port(self) -> int:
+        """API server port."""
+        val = os.environ.get("API_PORT") or self.get("api.port", 8000)
+        try:
+            return int(val)
+        except (ValueError, TypeError):
+            return 8000
+
+    @property
+    def api_debug(self) -> bool:
+        """Check if API debug mode is enabled."""
+        val = os.environ.get("API_DEBUG") or self.get("api.debug", False)
+        if isinstance(val, str):
+            return val.lower() in ("true", "1", "yes")
+        return bool(val)

@@ -128,9 +128,11 @@ def test_validator_missing_scraper_configurations() -> None:
         },
         "scrapers": {
             "greenhouse": {
+                "enabled": True,
                 "board_token": "",
             },
             "lever": {
+                "enabled": True,
                 "site_slug": "   ",
             },
         },
@@ -145,6 +147,57 @@ def test_validator_missing_scraper_configurations() -> None:
         "Greenhouse board token must not be empty" in err for err in result.errors
     )
     assert any("Lever site slug must not be empty" in err for err in result.errors)
+
+
+def test_validator_new_scrapers_validation() -> None:
+    """Verify validation of Workday, Ashby, SmartRecruiters, iCIMS, Oracle, and SuccessFactors when enabled."""
+    raw_dict = {
+        "scraper": {
+            "user_agent": "TestBot",
+        },
+        "scrapers": {
+            "greenhouse": {"enabled": False},
+            "lever": {"enabled": False},
+            "workday": {
+                "enabled": True,
+                "tenant": "",
+                "parent_site_id": "",
+            },
+            "ashby": {
+                "enabled": True,
+                "company_id": "   ",
+            },
+            "smartrecruiters": {
+                "enabled": True,
+                "company_id": "",
+            },
+            "icims": {
+                "enabled": True,
+                "company_id": "",
+            },
+            "oracle": {
+                "enabled": True,
+                "company_id": "",
+            },
+            "successfactors": {
+                "enabled": True,
+                "company_id": "",
+            },
+        },
+    }
+    settings = Settings(settings_dict=raw_dict)
+    validator = ConfigValidator()
+    result = validator.validate(settings)
+
+    assert result.is_valid is False
+    errors_str = "; ".join(result.errors)
+    assert "Workday tenant must not be empty" in errors_str
+    assert "Workday parent site ID must not be empty" in errors_str
+    assert "Ashby company ID must not be empty" in errors_str
+    assert "SmartRecruiters company ID must not be empty" in errors_str
+    assert "iCIMS company ID must not be empty" in errors_str
+    assert "Oracle company ID must not be empty" in errors_str
+    assert "SuccessFactors company ID must not be empty" in errors_str
 
 
 def test_validator_raise_exception() -> None:

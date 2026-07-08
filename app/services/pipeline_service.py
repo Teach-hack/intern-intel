@@ -60,6 +60,7 @@ class PipelineService:
         self._mapper_service = mapper_service or MapperService()
         self._database_service = database_service or DatabaseService()
         self._registry = registry or create_default_registry()
+        self.last_run_discovered = 0
 
     def _create_default_scrapers(self) -> list[BaseScraper]:
         """Create the configured default scraper instances."""
@@ -101,6 +102,7 @@ class PipelineService:
 
         try:
             raw_jobs = self._scraper_service.scrape_many(scrapers)
+            self.last_run_discovered = len(raw_jobs)
             logger.info(
                 "Fetched {} raw jobs.",
                 len(raw_jobs),

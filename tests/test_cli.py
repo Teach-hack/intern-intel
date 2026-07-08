@@ -163,8 +163,14 @@ def test_cli_version_command() -> None:
     mock_print.assert_called_once_with("InternIntel v1.2.3")
 
 
-def test_cli_doctor_healthy() -> None:
+@patch("app.core.config_validator.ConfigValidator")
+def test_cli_doctor_healthy(mock_validator_class: MagicMock) -> None:
     """Verify doctor command outputs OK when everything is configured correctly."""
+    mock_validator = mock_validator_class.return_value
+    from app.core.config_validator import ValidationResult
+
+    mock_validator.validate.return_value = ValidationResult(is_valid=True, errors=[])
+
     cli = CLI()
     with patch("app.cli.settings") as mock_settings:
         mock_settings.get.side_effect = lambda key, default=None: {
@@ -197,8 +203,14 @@ def test_cli_doctor_failed_config() -> None:
     mock_print.assert_any_call("[ERROR] Failed to load configuration: Corrupt file")
 
 
-def test_cli_doctor_missing_database() -> None:
+@patch("app.core.config_validator.ConfigValidator")
+def test_cli_doctor_missing_database(mock_validator_class: MagicMock) -> None:
     """Verify doctor command returns non-zero code when database path is missing."""
+    mock_validator = mock_validator_class.return_value
+    from app.core.config_validator import ValidationResult
+
+    mock_validator.validate.return_value = ValidationResult(is_valid=True, errors=[])
+
     cli = CLI()
     with patch("app.cli.settings") as mock_settings:
         mock_settings.get.side_effect = lambda key, default=None: {
@@ -212,8 +224,14 @@ def test_cli_doctor_missing_database() -> None:
     mock_print.assert_any_call("[ERROR] Database path is not configured.")
 
 
-def test_cli_doctor_telegram_warn() -> None:
+@patch("app.core.config_validator.ConfigValidator")
+def test_cli_doctor_telegram_warn(mock_validator_class: MagicMock) -> None:
     """Verify doctor prints warning if telegram notification is enabled but missing credentials."""
+    mock_validator = mock_validator_class.return_value
+    from app.core.config_validator import ValidationResult
+
+    mock_validator.validate.return_value = ValidationResult(is_valid=True, errors=[])
+
     cli = CLI()
     with patch("app.cli.settings") as mock_settings:
         mock_settings.get.side_effect = lambda key, default=None: {
@@ -314,6 +332,19 @@ def test_main_cli_execution() -> None:
         assert exc_info.value.code == 0
         mock_cli_class.assert_called_once()
         mock_cli_instance.execute.assert_called_once_with(["run"])
+
+
+def test_cli_serve() -> None:
+    """Verify serve command invokes uvicorn.run with correct params."""
+    cli = CLI()
+    with patch("uvicorn.run") as mock_uvicorn_run:
+        exit_code = cli.execute(
+            ["serve", "--host", "127.0.0.1", "--port", "8080", "--reload"]
+        )
+    assert exit_code == 0
+    mock_uvicorn_run.assert_called_once_with(
+        "app.api:app", host="127.0.0.1", port=8080, reload=True
+    )
 
 
 def test_main_cli_execution_exception() -> None:

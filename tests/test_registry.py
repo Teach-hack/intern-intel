@@ -130,19 +130,79 @@ def test_registry_ordering(mock_scraper: MagicMock) -> None:
 
 
 def test_create_default_registry() -> None:
-    """Verify create_default_registry pre-populates default scrapers."""
-    # Patch settings to ensure loading constants
+    """Verify create_default_registry registers only enabled scrapers."""
+    # Patch settings to configure which scrapers are enabled
     with patch("app.core.config.settings") as mock_settings:
+        mock_settings.greenhouse_enabled = True
+        mock_settings.lever_enabled = False
+        mock_settings.workday_enabled = True
+        mock_settings.ashby_enabled = False
+        mock_settings.smartrecruiters_enabled = False
+        mock_settings.icims_enabled = False
+        mock_settings.oracle_enabled = False
+        mock_settings.successfactors_enabled = False
+
+        # Configure board token and tenant details
+        mock_settings.greenhouse_board_token = "board1"
+        mock_settings.workday_tenant = "tenant1"
+        mock_settings.workday_parent_site_id = "site1"
+
         mock_settings.get.side_effect = lambda key, default=None: {
-            "scrapers.greenhouse.board_token": "board1",
-            "scrapers.lever.site_slug": "slug1",
+            "scrapers.greenhouse.enabled": True,
+            "scrapers.lever.enabled": False,
+            "scrapers.workday.enabled": True,
+            "scrapers.ashby.enabled": False,
+            "scrapers.smartrecruiters.enabled": False,
+            "scrapers.icims.enabled": False,
+            "scrapers.oracle.enabled": False,
+            "scrapers.successfactors.enabled": False,
         }.get(key, default)
 
-        registry = create_default_registry()
-        assert registry.list_names() == ["greenhouse", "lever"]
+        registry = create_default_registry(settings=mock_settings)
+        # Only greenhouse and workday are enabled
+        assert registry.list_names() == ["greenhouse", "workday"]
 
         greenhouse = registry.create("greenhouse")
-        lever = registry.create("lever")
+        workday = registry.create("workday")
 
         assert greenhouse.get_source_name() == "greenhouse"
-        assert lever.get_source_name() == "lever"
+        assert workday.get_source_name() == "workday"
+
+
+def test_create_default_registry_all_enabled() -> None:
+    """Verify that all default scrapers are registered when all are enabled."""
+    with patch("app.core.config.settings") as mock_settings:
+        # Enable all
+        for name in (
+            "greenhouse",
+            "lever",
+            "workday",
+            "ashby",
+            "smartrecruiters",
+            "icims",
+            "oracle",
+            "successfactors",
+        ):
+            setattr(mock_settings, f"{name}_enabled", True)
+
+        mock_settings.greenhouse_board_token = "g1"
+        mock_settings.lever_site_slug = "l1"
+        mock_settings.workday_tenant = "w1"
+        mock_settings.workday_parent_site_id = "w2"
+        mock_settings.ashby_company_id = "a1"
+        mock_settings.smartrecruiters_company_id = "sr1"
+        mock_settings.icims_company_id = "i1"
+        mock_settings.oracle_company_id = "o1"
+        mock_settings.successfactors_company_id = "sf1"
+
+        registry = create_default_registry(settings=mock_settings)
+        assert set(registry.list_names()) == {
+            "greenhouse",
+            "lever",
+            "workday",
+            "ashby",
+            "smartrecruiters",
+            "icims",
+            "oracle",
+            "successfactors",
+        }

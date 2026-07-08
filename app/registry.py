@@ -6,9 +6,18 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from app.core.logger import logger
+from app.scrapers.greenhouse import GreenhouseScraper
+from app.scrapers.lever import LeverScraper
+from app.scrapers.workday import WorkdayScraper
+from app.scrapers.ashby import AshbyScraper
+from app.scrapers.smartrecruiters import SmartRecruitersScraper
+from app.scrapers.icims import IcimsScraper
+from app.scrapers.oracle import OracleScraper
+from app.scrapers.successfactors import SuccessFactorsScraper
 
 if TYPE_CHECKING:
     from app.core.base_scraper import BaseScraper
+    from app.core.http_client import HttpClient
     from app.core.settings import Settings
 
 __all__ = ["CompanyRegistry", "create_default_registry"]
@@ -102,8 +111,47 @@ class CompanyRegistry:
         logger.info("Cleared all registered scraper factories.")
 
 
+# Mapping of scraper name to factory function constructing the scraper.
+# Adding a new ATS scraper only requires adding its builder function here.
+SCRAPER_FACTORIES: dict[str, Callable[[HttpClient, Settings], BaseScraper]] = {
+    "greenhouse": lambda hc, s: GreenhouseScraper(
+        http_client=hc,
+        board_token=s.greenhouse_board_token,
+    ),
+    "lever": lambda hc, s: LeverScraper(
+        http_client=hc,
+        site_slug=s.lever_site_slug,
+    ),
+    "workday": lambda hc, s: WorkdayScraper(
+        http_client=hc,
+        tenant=s.workday_tenant,
+        parent_site_id=s.workday_parent_site_id,
+    ),
+    "ashby": lambda hc, s: AshbyScraper(
+        http_client=hc,
+        company_id=s.ashby_company_id,
+    ),
+    "smartrecruiters": lambda hc, s: SmartRecruitersScraper(
+        http_client=hc,
+        company_id=s.smartrecruiters_company_id,
+    ),
+    "icims": lambda hc, s: IcimsScraper(
+        http_client=hc,
+        company_id=s.icims_company_id,
+    ),
+    "oracle": lambda hc, s: OracleScraper(
+        http_client=hc,
+        company_id=s.oracle_company_id,
+    ),
+    "successfactors": lambda hc, s: SuccessFactorsScraper(
+        http_client=hc,
+        company_id=s.successfactors_company_id,
+    ),
+}
+
+
 def create_default_registry(settings: Settings | None = None) -> CompanyRegistry:
-    """Create a registry instance preconfigured with Greenhouse and Lever scrapers.
+    """Create a registry instance preconfigured with enabled scrapers.
 
     Args:
         settings: Optional custom Settings container.
@@ -113,26 +161,17 @@ def create_default_registry(settings: Settings | None = None) -> CompanyRegistry
     """
     from app.core.config import settings as default_settings
     from app.core.http_client import http_client
-    from app.scrapers.greenhouse import GreenhouseScraper
-    from app.scrapers.lever import LeverScraper
 
     active_settings = settings or default_settings
     registry = CompanyRegistry()
 
-    registry.register(
-        "greenhouse",
-        lambda: GreenhouseScraper(
-            http_client=http_client,
-            board_token=active_settings.greenhouse_board_token,
-        ),
-    )
+    for name, factory in SCRAPER_FACTORIES.items():
+        enabled_flag = getattr(active_settings, f"{name}_enabled", False)
+        if enabled_flag:
+            # Closing over the specific loop variables
+            def make_builder(f=factory):
+                return lambda: f(http_client, active_settings)
 
-    registry.register(
-        "lever",
-        lambda: LeverScraper(
-            http_client=http_client,
-            site_slug=active_settings.lever_site_slug,
-        ),
-    )
+            registry.register(name, make_builder())
 
     return registry
