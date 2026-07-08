@@ -126,11 +126,14 @@ def test_run_success(
     mock_mapper_service.map_many.return_value = [internship]
     mock_database_service.save_many.return_value = [internship]
 
-    with (
-        patch("app.services.pipeline_service.GreenhouseScraper"),
-        patch("app.services.pipeline_service.LeverScraper"),
-    ):
-        result = service.run()
+    from app.registry import CompanyRegistry
+    from app.core.base_scraper import BaseScraper
+
+    mock_registry = MagicMock(spec=CompanyRegistry)
+    mock_registry.create_all.return_value = [MagicMock(spec=BaseScraper)]
+    service._registry = mock_registry
+
+    result = service.run()
 
     assert result == [internship]
 

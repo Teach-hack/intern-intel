@@ -8,18 +8,28 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.database.base import Base
 from app.database.repository import InternshipRepository
 from app.models.internship import Internship
 
 
+from pathlib import Path
+from app.core.settings import Settings
+from app.database.migrations import MigrationService
+
+
 @pytest.fixture(name="db_session")
-def fixture_db_session() -> Generator[Session, None, None]:
-    """Provide an isolated in-memory database session."""
-    engine = create_engine("sqlite:///:memory:", future=True)
+def fixture_db_session(tmp_path: Path) -> Generator[Session, None, None]:
+    """Provide an isolated database session using Alembic migrations."""
+    db_path = tmp_path / "test_repo.db"
+    settings = Settings(
+        {"database": {"path": str(db_path), "url": f"sqlite:///{db_path}"}}
+    )
 
-    Base.metadata.create_all(bind=engine)
+    # Run migrations to build the schema
+    ms = MigrationService(settings=settings)
+    ms.upgrade("head")
 
+    engine = create_engine(settings.database_url, future=True)
     session_factory = sessionmaker(
         bind=engine,
         expire_on_commit=False,
@@ -31,7 +41,7 @@ def fixture_db_session() -> Generator[Session, None, None]:
         yield session
     finally:
         session.close()
-        Base.metadata.drop_all(bind=engine)
+        engine.dispose()
 
 
 def make_job(

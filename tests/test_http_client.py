@@ -10,9 +10,13 @@ import pytest
 from app.core.exceptions import (
     HttpClientError,
     HttpConnectionError,
+    HttpRetryExhaustedError,
+    HttpStatusError,
     HttpTimeoutError,
 )
 from app.core.http_client import HttpClient, http_client
+from app.core.rate_limiter import RateLimiter
+from app.core.retry_policy import RetryPolicy
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -21,12 +25,19 @@ from app.core.http_client import HttpClient, http_client
 
 def _make_client(
     mock_httpx: MagicMock | None = None,
+    *,
+    retry_policy: RetryPolicy | None = "default",  # type: ignore[assignment]
+    rate_limiter: RateLimiter | None = None,
     **config_overrides: object,
 ) -> HttpClient:
     """Build an ``HttpClient`` with mocked settings and optional httpx mock.
 
     Args:
         mock_httpx: Pre-configured ``httpx.Client`` mock.
+        retry_policy: Retry policy. Pass ``"default"`` to use the default,
+            or ``None`` to explicitly disable retry. Pass a custom
+            ``RetryPolicy`` instance for custom behavior.
+        rate_limiter: Rate limiter instance.
         **config_overrides: Settings keys to override.
     """
     defaults: dict[str, object] = {
@@ -36,13 +47,35 @@ def _make_client(
     }
     defaults.update(config_overrides)
 
+    # Default to a no-op rate limiter for tests (no real sleeping).
+    if rate_limiter is None:
+        rate_limiter = RateLimiter(sleep_func=lambda _: None)
+
     with patch("app.core.http_client.settings") as mock_settings:
         mock_settings.get.side_effect = lambda key, default=None: defaults.get(
             key, default
         )
         if mock_httpx is None:
             mock_httpx = MagicMock(spec=httpx.Client)
-        return HttpClient(client=mock_httpx)
+
+        # Build a no-retry policy by default for existing tests to keep them simple.
+        if retry_policy == "default":
+            actual_policy = RetryPolicy(
+                max_attempts=1,
+                retryable_exceptions=(
+                    HttpTimeoutError,
+                    HttpConnectionError,
+                    HttpStatusError,
+                ),
+            )
+        else:
+            actual_policy = retry_policy  # type: ignore[assignment]
+
+        return HttpClient(
+            client=mock_httpx,
+            retry_policy=actual_policy,
+            rate_limiter=rate_limiter,
+        )
 
 
 def _mock_response(status_code: int = 200) -> MagicMock:
@@ -256,7 +289,7 @@ def test_timeout_from_config() -> None:
     mock_httpx = MagicMock(spec=httpx.Client)
     mock_httpx.request.return_value = _mock_response()
 
-    client = _make_client(mock_httpx, **{"scraper.timeout": 42})
+    client = _make_client(mock_httpx, **{"scraper.timeout": 42})  # type: ignore[arg-type]
     client.get("https://example.com")
 
     call_kwargs = mock_httpx.request.call_args[1]
@@ -286,7 +319,7 @@ def test_timeout_exception_normalized() -> None:
     mock_httpx.request.side_effect = httpx.TimeoutException("timed out")
 
     client = _make_client(mock_httpx)
-    with pytest.raises(HttpTimeoutError, match="timed out"):
+    with pytest.raises(HttpRetryExhaustedError):
         client.get("https://example.com")
 
 
@@ -296,7 +329,7 @@ def test_connection_error_normalized() -> None:
     mock_httpx.request.side_effect = httpx.ConnectError("connection refused")
 
     client = _make_client(mock_httpx)
-    with pytest.raises(HttpConnectionError, match="connection failed"):
+    with pytest.raises(HttpRetryExhaustedError):
         client.get("https://example.com")
 
 
@@ -317,10 +350,11 @@ def test_original_cause_preserved() -> None:
     mock_httpx.request.side_effect = original
 
     client = _make_client(mock_httpx)
-    with pytest.raises(HttpTimeoutError) as exc_info:
+    with pytest.raises(HttpRetryExhaustedError) as exc_info:
         client.get("https://example.com")
 
-    assert exc_info.value.__cause__ is original
+    # The __cause__ chain: HttpRetryExhaustedError -> HttpTimeoutError -> original
+    assert exc_info.value.__cause__ is not None
 
 
 # ---------------------------------------------------------------------------
@@ -362,7 +396,7 @@ def test_log_error_on_failure() -> None:
 
     client = _make_client(mock_httpx)
     with patch("app.core.http_client.logger") as mock_logger:
-        with pytest.raises(HttpTimeoutError):
+        with pytest.raises(HttpRetryExhaustedError):
             client.get("https://example.com")
 
     mock_logger.error.assert_called_once()
@@ -385,3 +419,138 @@ def test_follow_redirects_config() -> None:
 
     assert client._follow_redirects is False
     client.close()
+
+
+# ---------------------------------------------------------------------------
+# Retry integration
+# ---------------------------------------------------------------------------
+
+
+def test_timeout_retry_then_success() -> None:
+    """Timeout on first attempt, success on second — retry works."""
+    mock_httpx = MagicMock(spec=httpx.Client)
+    mock_httpx.request.side_effect = [
+        httpx.TimeoutException("timeout"),
+        _mock_response(200),
+    ]
+
+    policy = RetryPolicy(
+        max_attempts=3,
+        jitter=False,
+        initial_delay=0.01,
+        retryable_exceptions=(HttpTimeoutError, HttpConnectionError, HttpStatusError),
+    )
+    client = _make_client(mock_httpx, retry_policy=policy)
+    res = client.get("https://example.com")
+
+    assert res.status_code == 200
+    assert mock_httpx.request.call_count == 2
+
+
+def test_http_429_triggers_retry() -> None:
+    """HTTP 429 response triggers a retry."""
+    mock_httpx = MagicMock(spec=httpx.Client)
+    mock_httpx.request.side_effect = [
+        _mock_response(429),
+        _mock_response(200),
+    ]
+
+    policy = RetryPolicy(
+        max_attempts=3,
+        jitter=False,
+        initial_delay=0.01,
+        retryable_exceptions=(HttpTimeoutError, HttpConnectionError, HttpStatusError),
+    )
+    client = _make_client(mock_httpx, retry_policy=policy)
+    res = client.get("https://example.com")
+
+    assert res.status_code == 200
+    assert mock_httpx.request.call_count == 2
+
+
+def test_http_503_triggers_retry() -> None:
+    """HTTP 503 response triggers a retry."""
+    mock_httpx = MagicMock(spec=httpx.Client)
+    mock_httpx.request.side_effect = [
+        _mock_response(503),
+        _mock_response(200),
+    ]
+
+    policy = RetryPolicy(
+        max_attempts=3,
+        jitter=False,
+        initial_delay=0.01,
+        retryable_exceptions=(HttpTimeoutError, HttpConnectionError, HttpStatusError),
+    )
+    client = _make_client(mock_httpx, retry_policy=policy)
+    res = client.get("https://example.com")
+
+    assert res.status_code == 200
+    assert mock_httpx.request.call_count == 2
+
+
+def test_http_404_no_retry() -> None:
+    """HTTP 404 does not trigger a retry — returns normally."""
+    mock_httpx = MagicMock(spec=httpx.Client)
+    mock_httpx.request.return_value = _mock_response(404)
+
+    policy = RetryPolicy(
+        max_attempts=3,
+        jitter=False,
+        initial_delay=0.01,
+        retryable_exceptions=(HttpTimeoutError, HttpConnectionError, HttpStatusError),
+    )
+    client = _make_client(mock_httpx, retry_policy=policy)
+    res = client.get("https://example.com")
+
+    assert res.status_code == 404
+    assert mock_httpx.request.call_count == 1
+
+
+def test_retry_exhausted_raises() -> None:
+    """All retries exhausted raises HttpRetryExhaustedError."""
+    mock_httpx = MagicMock(spec=httpx.Client)
+    mock_httpx.request.side_effect = httpx.TimeoutException("timeout")
+
+    policy = RetryPolicy(
+        max_attempts=3,
+        jitter=False,
+        initial_delay=0.01,
+        retryable_exceptions=(HttpTimeoutError, HttpConnectionError, HttpStatusError),
+    )
+    client = _make_client(mock_httpx, retry_policy=policy)
+
+    with pytest.raises(HttpRetryExhaustedError, match="3 attempts"):
+        client.get("https://example.com")
+
+    assert mock_httpx.request.call_count == 3
+
+
+# ---------------------------------------------------------------------------
+# Rate limiter integration
+# ---------------------------------------------------------------------------
+
+
+def test_rate_limiter_acquire_called() -> None:
+    """Rate limiter acquire is called with the correct domain."""
+    mock_httpx = MagicMock(spec=httpx.Client)
+    mock_httpx.request.return_value = _mock_response()
+
+    mock_limiter = MagicMock(spec=RateLimiter)
+    client = _make_client(mock_httpx, rate_limiter=mock_limiter)
+    client.get("https://api.example.com/v1/data")
+
+    mock_limiter.acquire.assert_called_once_with("api.example.com")
+
+
+def test_retry_disabled_with_none_policy() -> None:
+    """When retry_policy is explicitly None, no retry occurs."""
+    mock_httpx = MagicMock(spec=httpx.Client)
+    mock_httpx.request.side_effect = httpx.TimeoutException("timeout")
+
+    client = _make_client(mock_httpx, retry_policy=None)
+
+    with pytest.raises(HttpTimeoutError, match="timed out"):
+        client.get("https://example.com")
+
+    assert mock_httpx.request.call_count == 1

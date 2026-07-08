@@ -4,12 +4,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from app.core.config import settings
 from app.core.exceptions import DatabaseError, InternIntelError, ScraperError
 from app.core.http_client import http_client
 from app.core.logger import logger
-from app.scrapers.greenhouse import GreenhouseScraper
-from app.scrapers.lever import LeverScraper
+from app.registry import CompanyRegistry, create_default_registry
 from app.services.database_service import DatabaseService
 from app.services.dedup_service import DedupService
 from app.services.mapper_service import MapperService
@@ -46,6 +44,7 @@ class PipelineService:
         dedup_service: DedupService | None = None,
         mapper_service: MapperService | None = None,
         database_service: DatabaseService | None = None,
+        registry: CompanyRegistry | None = None,
     ) -> None:
         """Initialize pipeline dependencies.
 
@@ -54,35 +53,17 @@ class PipelineService:
             dedup_service: Deduplication service.
             mapper_service: Mapping service.
             database_service: Database persistence service.
+            registry: Company registry containing scraper factories.
         """
         self._scraper_service = scraper_service or ScraperService(http_client)
         self._dedup_service = dedup_service or DedupService()
         self._mapper_service = mapper_service or MapperService()
         self._database_service = database_service or DatabaseService()
+        self._registry = registry or create_default_registry()
 
     def _create_default_scrapers(self) -> list[BaseScraper]:
         """Create the configured default scraper instances."""
-
-        greenhouse_token = settings.get(
-            "scrapers.greenhouse.board_token",
-            "google",
-        )
-
-        lever_slug = settings.get(
-            "scrapers.lever.site_slug",
-            "veriff",
-        )
-
-        return [
-            GreenhouseScraper(
-                http_client=http_client,
-                board_token=greenhouse_token,
-            ),
-            LeverScraper(
-                http_client=http_client,
-                site_slug=lever_slug,
-            ),
-        ]
+        return self._registry.create_all()
 
     def run(self) -> list[Internship]:
         """Run the pipeline using configured default scrapers.
