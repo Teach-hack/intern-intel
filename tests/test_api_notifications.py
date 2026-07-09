@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import Generator
 from unittest.mock import MagicMock
 
 import pytest
@@ -10,16 +11,24 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from app.api.app import app
-from app.api.dependencies import get_db_session, get_notification_service
+from app.api.dependencies import (
+    get_admin_user,
+    get_db_session,
+    get_notification_service,
+)
 from app.core.exceptions import TelegramNotificationError
 from app.models.internship import Internship
 from app.notifications.notification_service import NotificationService
 
 
 @pytest.fixture
-def client() -> TestClient:
+def client() -> Generator[TestClient, None, None]:
     """Fixture returning a FastAPI test client."""
-    return TestClient(app)
+    app.dependency_overrides[get_admin_user] = lambda: MagicMock()
+    try:
+        yield TestClient(app)
+    finally:
+        app.dependency_overrides.clear()
 
 
 def test_send_notifications_success(client: TestClient) -> None:

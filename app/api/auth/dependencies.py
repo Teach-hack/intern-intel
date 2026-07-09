@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Annotated
+
 from fastapi import Header
 
 __all__ = ["verify_api_key"]

@@ -6,8 +6,7 @@ import time
 
 from fastapi import APIRouter, Depends, status
 
-from app.api.auth.dependencies import verify_api_key
-from app.api.dependencies import get_pipeline_service
+from app.api.dependencies import get_admin_user, get_pipeline_service
 from app.api.schemas.response import PipelineRunResponse
 from app.services.pipeline_service import PipelineService
 
@@ -23,7 +22,7 @@ router = APIRouter(tags=["Pipeline"])
         "Triggers the scraper pipeline orchestration sequence to fetch new "
         "listings, filter duplicates, and persist updates."
     ),
-    dependencies=[Depends(verify_api_key)],
+    dependencies=[Depends(get_admin_user)],
 )
 async def run_pipeline(
     pipeline_service: PipelineService = Depends(get_pipeline_service),

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import Generator
 from unittest.mock import MagicMock
 
 import pytest
@@ -9,16 +10,20 @@ from fastapi import status
 from fastapi.testclient import TestClient
 
 from app.api.app import app
-from app.api.dependencies import get_pipeline_service
+from app.api.dependencies import get_admin_user, get_pipeline_service
 from app.core.exceptions import DatabaseError, ScraperError
 from app.models.internship import Internship
 from app.services.pipeline_service import PipelineService
 
 
 @pytest.fixture
-def client() -> TestClient:
+def client() -> Generator[TestClient, None, None]:
     """Fixture returning a FastAPI test client."""
-    return TestClient(app)
+    app.dependency_overrides[get_admin_user] = lambda: MagicMock()
+    try:
+        yield TestClient(app)
+    finally:
+        app.dependency_overrides.clear()
 
 
 def test_pipeline_run_success(client: TestClient) -> None:

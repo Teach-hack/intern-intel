@@ -13,6 +13,8 @@ from app.core.config import settings
 from app.database.base import Base
 
 import app.models.internship  # noqa: F401 (ensure models are registered with Base.metadata)
+import app.models.refresh_token  # noqa: F401
+import app.models.user  # noqa: F401
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

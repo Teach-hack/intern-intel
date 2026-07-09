@@ -347,3 +347,83 @@ class Settings:
         if isinstance(val, str):
             return val.lower() in ("true", "1", "yes")
         return bool(val)
+
+    @property
+    def jwt_secret_key(self) -> str:
+        """JWT secret key."""
+        val = os.environ.get("JWT_SECRET_KEY") or self.get("security.jwt_secret_key")
+        if not val or val == "supersecretkey" or len(str(val)) < 32:
+            from app.core.exceptions import ConfigurationError
+
+            raise ConfigurationError(
+                "JWT_SECRET_KEY is insecure, missing, or less than 32 characters."
+            )
+        return str(val)
+
+    @property
+    def jwt_algorithm(self) -> str:
+        """JWT signature algorithm."""
+        val = os.environ.get("JWT_ALGORITHM") or self.get(
+            "security.jwt_algorithm", "HS256"
+        )
+        return str(val)
+
+    @property
+    def jwt_issuer(self) -> str:
+        """JWT issuer identifier."""
+        val = os.environ.get("JWT_ISSUER") or self.get(
+            "security.jwt_issuer", "intern-intel"
+        )
+        return str(val)
+
+    @property
+    def jwt_audience(self) -> str:
+        """JWT audience identifier."""
+        val = os.environ.get("JWT_AUDIENCE") or self.get(
+            "security.jwt_audience", "intern-intel-users"
+        )
+        return str(val)
+
+    @property
+    def access_token_expire_minutes(self) -> int:
+        """Access token expiry in minutes."""
+        val = os.environ.get("ACCESS_TOKEN_EXPIRE_MINUTES") or self.get(
+            "security.access_token_expire_minutes", 30
+        )
+        try:
+            return int(val)
+        except (ValueError, TypeError):
+            return 30
+
+    @property
+    def refresh_token_expire_days(self) -> int:
+        """Refresh token expiry in days."""
+        val = os.environ.get("REFRESH_TOKEN_EXPIRE_DAYS") or self.get(
+            "security.refresh_token_expire_days", 7
+        )
+        try:
+            return int(val)
+        except (ValueError, TypeError):
+            return 7
+
+    @property
+    def password_min_length(self) -> int:
+        """Minimum password length rule."""
+        val = os.environ.get("PASSWORD_MIN_LENGTH") or self.get(
+            "security.password_min_length", 8
+        )
+        try:
+            return int(val)
+        except (ValueError, TypeError):
+            return 8
+
+    @property
+    def password_max_length(self) -> int:
+        """Maximum password length rule."""
+        val = os.environ.get("PASSWORD_MAX_LENGTH") or self.get(
+            "security.password_max_length", 128
+        )
+        try:
+            return int(val)
+        except (ValueError, TypeError):
+            return 128
