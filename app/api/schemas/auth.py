@@ -188,7 +188,9 @@ class TokenResponse(BaseModel):
     refresh_token: str = Field(description="Active session refresh token string.")
     token_type: str = Field(default="bearer", description="Token schema prefix type.")
     expires_in: int = Field(description="Access token lifespan in seconds.")
-    auth_state: str = Field(default="AUTHENTICATED", description="Current authentication state.")
+    auth_state: str = Field(
+        default="AUTHENTICATED", description="Current authentication state."
+    )
 
     model_config = {
         "json_schema_extra": {

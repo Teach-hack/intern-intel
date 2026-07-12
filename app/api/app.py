@@ -14,6 +14,8 @@ from app.api.routers import (
     notifications_router,
     pipeline_router,
     auth_router,
+    users_router,
+    dashboard_router,
 )
 from app.core.config import settings
 from app.core.logger import logger
@@ -67,6 +69,8 @@ v1_router.include_router(internships_router)
 v1_router.include_router(pipeline_router)
 v1_router.include_router(notifications_router)
 v1_router.include_router(auth_router)
+v1_router.include_router(users_router)
+v1_router.include_router(dashboard_router)
 
 app.include_router(v1_router)
 

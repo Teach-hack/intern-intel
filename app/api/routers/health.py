@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import sys
+import os
+import platform
+import shutil
 import threading
 import time
 
@@ -60,6 +64,21 @@ async def get_health(
     notifications_status = "enabled" if settings.telegram_enabled else "disabled"
     uptime = int(time.time() - _START_TIME)
 
+    try:
+        cpu_load = list(os.getloadavg())
+    except Exception:
+        cpu_load = None
+
+    try:
+        disk = shutil.disk_usage("/")
+        disk_usage_percent = round((disk.used / disk.total) * 100, 2)
+    except Exception:
+        disk_usage_percent = None
+
+    # Memory usage is hard to reliably calculate cross-platform without psutil.
+    # Return None so the frontend can handle gracefully.
+    memory_usage_percent = None
+
     return HealthResponse(
         status="healthy",
         database=database_status,
@@ -68,4 +87,9 @@ async def get_health(
         registered_scrapers=len(SCRAPER_FACTORIES),
         version=settings.API_VERSION,
         uptime_seconds=uptime,
+        cpu_load=cpu_load,
+        memory_usage_percent=memory_usage_percent,
+        disk_usage_percent=disk_usage_percent,
+        python_version=sys.version.split(" ")[0],
+        platform=platform.system() + " " + platform.release(),
     )

@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from pydantic import BaseModel, Field
 
 __all__ = [
     "HealthResponse",
     "StatsResponse",
     "PipelineRunResponse",
+    "PipelineStatusResponse",
     "NotificationRequest",
     "ErrorResponse",
 ]
@@ -27,6 +29,18 @@ class HealthResponse(BaseModel):
     )
     version: str = Field(description="Application version identifier.")
     uptime_seconds: int = Field(description="Number of seconds since server startup.")
+
+    cpu_load: list[float] | None = Field(
+        default=None, description="CPU load average (1m, 5m, 15m)."
+    )
+    memory_usage_percent: float | None = Field(
+        default=None, description="Approximate memory usage percentage."
+    )
+    disk_usage_percent: float | None = Field(
+        default=None, description="Disk usage percentage."
+    )
+    python_version: str = Field(description="Python interpreter version.")
+    platform: str = Field(description="Host OS platform.")
 
     model_config = {
         "json_schema_extra": {
@@ -89,6 +103,36 @@ class PipelineRunResponse(BaseModel):
             }
         }
     }
+
+
+class PipelineStatusResponse(BaseModel):
+    """Pydantic schema representing the current status of the pipeline."""
+
+    running: bool = Field(description="Is the pipeline currently executing?")
+    last_run: datetime | None = Field(description="Timestamp of the last run start.")
+    last_success: datetime | None = Field(
+        description="Timestamp of the last successful run."
+    )
+    last_failure: datetime | None = Field(
+        description="Timestamp of the last failed run."
+    )
+    duration: float | None = Field(description="Duration of the last run in seconds.")
+    queue_length: int = Field(description="Number of items in the pipeline queue.")
+    currently_running_scrapers: list[str] = Field(
+        description="List of active scraper names."
+    )
+    next_scheduled_run: datetime | None = Field(
+        description="Timestamp of the next scheduled run."
+    )
+    scrapers_executed: int = Field(
+        description="Number of scrapers executed in the last run."
+    )
+    jobs_discovered: int = Field(
+        description="Number of jobs discovered in the last run."
+    )
+    jobs_inserted: int = Field(description="Number of jobs inserted in the last run.")
+    jobs_updated: int = Field(description="Number of jobs updated in the last run.")
+    errors: int = Field(description="Number of errors in the last run.")
 
 
 class NotificationRequest(BaseModel):

@@ -80,7 +80,7 @@ def test_user(client: TestClient) -> dict[str, str]:
     user_data = {
         "username": "normal_user",
         "email": "user@example.com",
-        "password": "SecurePassword123"
+        "password": "SecurePassword123",
     }
     client.post("/api/v1/auth/register", json=user_data)
     return user_data
@@ -89,7 +89,10 @@ def test_user(client: TestClient) -> dict[str, str]:
 @pytest.fixture
 def normal_user_token(client: TestClient, test_user: dict[str, str]) -> dict[str, str]:
     """Login and return token for regular user."""
-    response = client.post("/api/v1/auth/login", json={"username": test_user["email"], "password": test_user["password"]})
+    response = client.post(
+        "/api/v1/auth/login",
+        json={"username": test_user["email"], "password": test_user["password"]},
+    )
     return response.json()
 
 
@@ -99,8 +102,14 @@ def admin_token(client: TestClient) -> dict[str, str]:
     # Since we don't have a way to register an admin directly, we mock it.
     from app.services.auth_service import AuthenticationService
     from app.core.config import settings
+
     auth_service = AuthenticationService(settings)
-    auth_service.register("admin_user", "admin@example.com", "AdminPassword123", UserRole.ADMIN)
-    
-    response = client.post("/api/v1/auth/login", json={"username": "admin@example.com", "password": "AdminPassword123"})
+    auth_service.register(
+        "admin_user", "admin@example.com", "AdminPassword123", UserRole.ADMIN
+    )
+
+    response = client.post(
+        "/api/v1/auth/login",
+        json={"username": "admin@example.com", "password": "AdminPassword123"},
+    )
     return response.json()

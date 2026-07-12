@@ -58,6 +58,10 @@ class InternshipRepository:
         self._session.flush()
         return jobs
 
+    def get(self, id: int) -> Internship | None:
+        """Retrieve an internship by ID."""
+        return self._session.get(Internship, id)
+
     def get_by_url(self, url: str) -> Internship | None:
         """Retrieve an internship by its URL.
 

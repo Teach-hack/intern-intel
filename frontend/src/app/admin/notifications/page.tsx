@@ -3,7 +3,7 @@
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Send, Bell, BellOff } from 'lucide-react';
+import { Bell, Send } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiClient } from '@/lib/axios';
 

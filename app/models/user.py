@@ -5,8 +5,13 @@ from __future__ import annotations
 import enum
 from datetime import datetime, timezone
 
+import typing
+
+if typing.TYPE_CHECKING:
+    from app.models.saved_job import SavedJob
+
 from sqlalchemy import Boolean, DateTime, Enum, Integer, String
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.base import Base
 
@@ -74,4 +79,10 @@ class User(Base):
         default=_utc_now,
         onupdate=_utc_now,
         nullable=False,
+    )
+
+    saved_jobs: Mapped[list["SavedJob"]] = relationship(
+        "SavedJob",
+        back_populates="user",
+        cascade="all, delete-orphan",
     )

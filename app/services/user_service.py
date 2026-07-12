@@ -144,14 +144,20 @@ class UserService:
             user = user_repo.get_by_id(user_id)
             if user:
                 if user.role == UserRole.ADMIN:
-                    admin_count = len([u for u in user_repo.list_users(limit=1000) if u.role == UserRole.ADMIN])
+                    admin_count = len(
+                        [
+                            u
+                            for u in user_repo.list_users(limit=1000)
+                            if u.role == UserRole.ADMIN
+                        ]
+                    )
                     if admin_count <= 1:
-                        raise ValueError("Cannot delete the last remaining administrator account.")
+                        raise ValueError(
+                            "Cannot delete the last remaining administrator account."
+                        )
                 user_repo.delete(user)
                 AuditService.log_event(
-                    action="USER_DELETED",
-                    target_id=user_id,
-                    session=session
+                    action="USER_DELETED", target_id=user_id, session=session
                 )
 
     def admin_update_user(
@@ -197,9 +203,17 @@ class UserService:
 
             if role is not None and role != user.role:
                 if user.role == UserRole.ADMIN and role != UserRole.ADMIN:
-                    admin_count = len([u for u in user_repo.list_users(limit=1000) if u.role == UserRole.ADMIN])
+                    admin_count = len(
+                        [
+                            u
+                            for u in user_repo.list_users(limit=1000)
+                            if u.role == UserRole.ADMIN
+                        ]
+                    )
                     if admin_count <= 1:
-                        raise ValueError("Cannot demote the last remaining administrator account.")
+                        raise ValueError(
+                            "Cannot demote the last remaining administrator account."
+                        )
                 user.role = role
                 # Revoke all sessions since privileges changed
                 token_repo = RefreshTokenRepository(session)
@@ -214,6 +228,6 @@ class UserService:
                 action="USER_UPDATED",
                 target_id=user_id,
                 details=f"Updated by admin. New role: {user.role}",
-                session=session
+                session=session,
             )
             return user

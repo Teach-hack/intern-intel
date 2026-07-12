@@ -25,7 +25,7 @@ export async function proxy(request: NextRequest) {
         url.pathname = '/dashboard';
         return NextResponse.redirect(url);
       }
-    } catch (error) {
+    } catch {
       // Invalid session cookie
       const url = request.nextUrl.clone();
       url.pathname = '/login';

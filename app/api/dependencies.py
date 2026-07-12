@@ -20,6 +20,8 @@ from app.registry import create_default_registry
 from app.security.tokens import verify_token
 from app.services.database_service import DatabaseService
 from app.services.pipeline_service import PipelineService
+from app.services.saved_job_service import SavedJobService
+from app.services.dashboard_service import DashboardService
 
 if TYPE_CHECKING:
     from app.core.settings import Settings
@@ -30,6 +32,8 @@ __all__ = [
     "get_database_service",
     "get_pipeline_service",
     "get_notification_service",
+    "get_saved_job_service",
+    "get_dashboard_service",
     "get_current_user",
     "get_current_active_user",
     "get_admin_user",
@@ -105,6 +109,22 @@ def get_notification_service(
         notifier = TelegramNotifier(bot_token=bot_token, chat_id=chat_id)
 
     return NotificationService(message_builder=MessageBuilder(), notifier=notifier)
+
+
+def get_saved_job_service(
+    session: Session = Depends(get_db_session),
+) -> SavedJobService:
+    """Provide the SavedJobService instance."""
+    return SavedJobService(session=session)
+
+
+def get_dashboard_service(
+    session: Session = Depends(get_db_session),
+    settings: Settings = Depends(get_settings),
+    db_service: DatabaseService = Depends(get_database_service),
+) -> DashboardService:
+    """Provide the DashboardService instance."""
+    return DashboardService(session=session, settings=settings, db_service=db_service)
 
 
 # =============================================================================

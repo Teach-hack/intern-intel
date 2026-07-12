@@ -147,7 +147,7 @@ class AuthenticationService:
                 action="USER_REGISTER",
                 target_id=user.id,
                 details=f"Email: {user.email}",
-                session=session
+                session=session,
             )
             return user
 
@@ -178,9 +178,20 @@ class AuthenticationService:
             if not user or not verify_password(password, user.password_hash):
                 self._record_failed_login(username_or_email)
                 if user:
-                    AuditService.log_event(action="LOGIN_FAILED", actor_id=user.id, status="FAILED", details="Invalid password", session=session)
+                    AuditService.log_event(
+                        action="LOGIN_FAILED",
+                        actor_id=user.id,
+                        status="FAILED",
+                        details="Invalid password",
+                        session=session,
+                    )
                 else:
-                    AuditService.log_event(action="LOGIN_FAILED", status="FAILED", details=f"Unknown username_or_email: {username_or_email}", session=session)
+                    AuditService.log_event(
+                        action="LOGIN_FAILED",
+                        status="FAILED",
+                        details=f"Unknown username_or_email: {username_or_email}",
+                        session=session,
+                    )
                 raise ValueError("Invalid username or password.")
 
             if not user.is_active:
@@ -210,7 +221,7 @@ class AuthenticationService:
                 action="USER_LOGIN",
                 actor_id=user.id,
                 details=f"Device: {device_name}",
-                session=session
+                session=session,
             )
 
             return {
@@ -266,7 +277,7 @@ class AuthenticationService:
                     actor_id=token_record.user_id,
                     status="FAILED",
                     details="Refresh token reuse detected; all sessions revoked",
-                    session=session
+                    session=session,
                 )
                 raise ValueError(
                     "Refresh token has been revoked or expired. Security breach detected; all sessions revoked."
@@ -323,9 +334,7 @@ class AuthenticationService:
             if token_record and token_record.revoked_at is None:
                 token_repo.revoke(token_record)
                 AuditService.log_event(
-                    action="USER_LOGOUT",
-                    actor_id=token_record.user_id,
-                    session=session
+                    action="USER_LOGOUT", actor_id=token_record.user_id, session=session
                 )
 
     def logout_all(self, user_id: int) -> None:
@@ -337,7 +346,9 @@ class AuthenticationService:
         with get_session() as session:
             token_repo = RefreshTokenRepository(session)
             token_repo.revoke_all(user_id)
-            AuditService.log_event(action="LOGOUT_ALL", actor_id=user_id, session=session)
+            AuditService.log_event(
+                action="LOGOUT_ALL", actor_id=user_id, session=session
+            )
 
     def change_password(
         self, user_id: int, old_password: str, new_password: str
@@ -377,9 +388,7 @@ class AuthenticationService:
             token_repo = RefreshTokenRepository(session)
             token_repo.revoke_all(user_id)
             AuditService.log_event(
-                action="PASSWORD_CHANGED",
-                actor_id=user_id,
-                session=session
+                action="PASSWORD_CHANGED", actor_id=user_id, session=session
             )
 
     # =========================================================================

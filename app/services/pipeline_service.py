@@ -11,7 +11,6 @@ from app.registry import CompanyRegistry, create_default_registry
 from app.services.database_service import DatabaseService
 from app.services.dedup_service import DedupService
 from app.services.mapper_service import MapperService
-from app.services.mapper_service import MapperService
 from app.services.scraper_service import ScraperService
 from app.services.audit_service import AuditService
 
@@ -153,7 +152,7 @@ class PipelineService:
 
             AuditService.log_event(
                 action="PIPELINE_EXECUTION",
-                details=f"Discovered: {self.last_run_discovered}, Saved: {len(saved_jobs)}"
+                details=f"Discovered: {self.last_run_discovered}, Saved: {len(saved_jobs)}",
             )
 
             return saved_jobs

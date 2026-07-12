@@ -93,7 +93,9 @@ class Startup:
         try:
             with get_session() as session:
                 user_repo = UserRepository(session)
-                if not user_repo.get_by_username("admin") and not user_repo.get_by_email("admin@internintel.local"):
+                if not user_repo.get_by_username(
+                    "admin"
+                ) and not user_repo.get_by_email("admin@internintel.local"):
                     auth_service = AuthenticationService(self._settings)
                     auth_service.register(
                         username="admin",
@@ -101,9 +103,13 @@ class Startup:
                         password="Admin@12345",
                         role=UserRole.ADMIN,
                     )
-                    logger.info("Default administrator account successfully provisioned.")
+                    logger.info(
+                        "Default administrator account successfully provisioned."
+                    )
                 else:
-                    logger.debug("Administrator account already exists. Skipping provisioning.")
+                    logger.debug(
+                        "Administrator account already exists. Skipping provisioning."
+                    )
         except Exception as exc:
             logger.error("Failed to provision default administrator account: {}", exc)
 

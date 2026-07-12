@@ -2,23 +2,16 @@
 
 from __future__ import annotations
 
-from collections.abc import Generator
-from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 from fastapi import status
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.orm import Session
 
-from app.api.app import app
-from app.api.dependencies import get_db_session
 from app.core.settings import Settings
-from app.database.migrations import MigrationService
 from app.models.user import User, UserRole
 from app.security.pwd_context import hash_password, verify_password
-
 
 
 def test_password_hashing() -> None:
@@ -420,7 +413,6 @@ def test_admin_routes_privilege(client: TestClient, db_session: Session) -> None
 def test_user_service_direct_methods(db_session: Session) -> None:
     """Verify all public methods of UserService directly."""
     from app.services.user_service import UserService
-    from app.core.settings import Settings
 
     settings = Settings({})
     user_service = UserService(settings)

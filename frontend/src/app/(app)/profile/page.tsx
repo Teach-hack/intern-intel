@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/providers/auth-provider';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,12 +10,23 @@ import { Label } from '@/components/ui/label';
 export default function ProfilePage() {
   const { user } = useAuth();
   
-  const username = user?.username || '';
-  const email = user?.email || '';
+  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
 
-  const [currentPassword, setCurrentPassword] = React.useState('');
-  const [newPassword, setNewPassword] = React.useState('');
-  const [confirmPassword, setConfirmPassword] = React.useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+
+  useEffect(() => {
+    if (user) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setUsername(user.username || '');
+      setEmail(user.email || '');
+    }
+  }, [user]);
+
+  // Provide empty handlers to satisfy React for controlled readOnly inputs
+  const handleNoop = () => {};
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -32,6 +43,7 @@ export default function ProfilePage() {
             <Input 
               id="username" 
               value={username} 
+              onChange={handleNoop}
               disabled 
               readOnly
             />
@@ -42,6 +54,7 @@ export default function ProfilePage() {
               id="email" 
               type="email" 
               value={email} 
+              onChange={handleNoop}
               disabled 
               readOnly
             />

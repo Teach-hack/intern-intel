@@ -257,28 +257,25 @@ class CLI:
 
     def create_admin(self, username: str, email: str, password: str) -> int:
         """Create a new admin user directly from CLI.
-        
+
         Args:
             username: Admin username.
             email: Admin email.
             password: Admin password.
-            
+
         Returns:
             Exit code.
         """
         from app.services.auth_service import AuthenticationService
         from app.models.user import UserRole
-        
+
         logger.info("Executing CLI 'create-admin' command.")
         self._startup.run()
-        
+
         auth_service = AuthenticationService(self._active_settings)
         try:
             user = auth_service.register(
-                username=username,
-                email=email,
-                password=password,
-                role=UserRole.ADMIN
+                username=username, email=email, password=password, role=UserRole.ADMIN
             )
             print(f"[OK] Admin user '{user.username}' created successfully.")
             return 0
@@ -355,7 +352,9 @@ class CLI:
         subparsers.add_parser("doctor", help="Run diagnostic validation checks")
 
         # create-admin command
-        admin_parser = subparsers.add_parser("create-admin", help="Create an admin user")
+        admin_parser = subparsers.add_parser(
+            "create-admin", help="Create an admin user"
+        )
         admin_parser.add_argument("--username", required=True, help="Admin username")
         admin_parser.add_argument("--email", required=True, help="Admin email")
         admin_parser.add_argument("--password", required=True, help="Admin password")

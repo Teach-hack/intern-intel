@@ -7,7 +7,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import Callable
 
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import HTTPException, Request, status
 
 # In-memory store: { ip_address: RateLimitData }
 _RATE_LIMIT_STORE: dict[str, "RateLimitData"] = defaultdict(lambda: RateLimitData())
@@ -48,9 +48,11 @@ def rate_limit(max_failures: int = 5, lock_duration_seconds: int = 900) -> Calla
     return dependency
 
 
-def record_failed_attempt(ip_address: str, max_failures: int = 5, lock_duration_seconds: int = 900) -> None:
+def record_failed_attempt(
+    ip_address: str, max_failures: int = 5, lock_duration_seconds: int = 900
+) -> None:
     """Increment failure counter and potentially lock IP.
-    
+
     Args:
         ip_address: Client IP address.
         max_failures: Threshold to trigger lock.
@@ -58,7 +60,7 @@ def record_failed_attempt(ip_address: str, max_failures: int = 5, lock_duration_
     """
     data = _RATE_LIMIT_STORE[ip_address]
     data.failures += 1
-    
+
     if data.failures >= max_failures:
         data.locked_until = time.time() + lock_duration_seconds
         data.failures = 0
@@ -66,7 +68,7 @@ def record_failed_attempt(ip_address: str, max_failures: int = 5, lock_duration_
 
 def clear_failed_attempts(ip_address: str) -> None:
     """Reset the failure counter for an IP address.
-    
+
     Args:
         ip_address: Client IP address.
     """

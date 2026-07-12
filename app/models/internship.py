@@ -2,8 +2,13 @@
 
 from datetime import date, datetime, timezone
 
+import typing
+
+if typing.TYPE_CHECKING:
+    from app.models.saved_job import SavedJob
+
 from sqlalchemy import Date, DateTime, Integer, String, Text
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.base import Base
 
@@ -101,4 +106,10 @@ class Internship(Base):
         default=_utc_now,
         onupdate=_utc_now,
         comment="UTC timestamp when this row was last modified",
+    )
+
+    saved_by: Mapped[list["SavedJob"]] = relationship(
+        "SavedJob",
+        back_populates="internship",
+        cascade="all, delete-orphan",
     )
