@@ -6,7 +6,13 @@ import os
 from pathlib import Path
 from typing import Any
 
+import sys
 import yaml
+from dotenv import load_dotenv
+
+# Load environment variables from .env file at startup (skip during testing to prevent env pollution)
+if "pytest" not in sys.modules:
+    load_dotenv()
 
 __all__ = ["Settings"]
 

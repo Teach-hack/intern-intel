@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Generator
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 import pytest
 from fastapi import status
@@ -19,55 +19,6 @@ from app.database.migrations import MigrationService
 from app.models.user import User, UserRole
 from app.security.pwd_context import hash_password, verify_password
 
-
-@pytest.fixture(name="db_session")
-def fixture_db_session(tmp_path: Path) -> Generator[Session, None, None]:
-    """Provide an isolated database session with schema migrated."""
-    db_path = tmp_path / "test_api_auth.db"
-    settings = Settings(
-        {"database": {"path": str(db_path), "url": f"sqlite:///{db_path}"}}
-    )
-
-    ms = MigrationService(settings=settings)
-    ms.upgrade("head")
-
-    engine = create_engine(settings.database_url, future=True)
-    session_factory = sessionmaker(
-        bind=engine,
-        expire_on_commit=False,
-    )
-    session = session_factory()
-
-    app.dependency_overrides[get_db_session] = lambda: session
-
-    from contextlib import contextmanager
-
-    @contextmanager
-    def mock_get_session():
-        yield session
-
-    with (
-        patch("app.database.session.get_session", side_effect=mock_get_session),
-        patch("app.services.auth_service.get_session", side_effect=mock_get_session),
-        patch("app.services.user_service.get_session", side_effect=mock_get_session),
-    ):
-        try:
-            yield session
-        finally:
-            session.close()
-            engine.dispose()
-            app.dependency_overrides.clear()
-            # Clear failed login attempts lockout dictionary
-            from app.services.auth_service import _default_throttle
-
-            with patch.object(_default_throttle, "_lock"):
-                _default_throttle._failed_attempts.clear()
-
-
-@pytest.fixture(name="client")
-def fixture_client(db_session: Session) -> TestClient:
-    """TestClient instance fixture."""
-    return TestClient(app)
 
 
 def test_password_hashing() -> None:
@@ -556,6 +507,7 @@ def test_user_service_direct_methods(db_session: Session) -> None:
         user_service.admin_update_user(u2.id, email="admin_chosen_email@example.com")
 
     # delete_user
+    user_service.admin_update_user(u2.id, role=UserRole.ADMIN)
     user_service.delete_user(u1.id)
     with pytest.raises(ValueError, match="User not found"):
         user_service.profile(u1.id)
@@ -622,7 +574,11 @@ def test_token_helpers_direct() -> None:
     )
 
     # Access Token Creation & Validation
-    tok = create_access_token("alice")
+    mock_user = MagicMock()
+    mock_user.username = "alice"
+    mock_user.id = 1
+    mock_user.role = "USER"
+    tok = create_access_token(mock_user)
     claims = verify_token(tok)
     assert claims is not None
     assert claims["sub"] == "alice"
@@ -640,5 +596,5 @@ def test_token_helpers_direct() -> None:
     assert verify_token("") is None
 
     # Expired token verification
-    expired_tok = create_access_token("alice", expires_delta=timedelta(seconds=-10))
+    expired_tok = create_access_token(mock_user, expires_delta=timedelta(seconds=-10))
     assert verify_token(expired_tok) is None

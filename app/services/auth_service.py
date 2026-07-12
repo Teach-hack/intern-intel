@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 from app.database.refresh_token_repository import RefreshTokenRepository
 from app.database.user_repository import UserRepository
+from app.services.audit_service import AuditService
 from app.database.session import get_session
 from app.models.refresh_token import RefreshToken
 from app.models.user import User, UserRole
@@ -127,8 +128,10 @@ class AuthenticationService:
 
         with get_session() as session:
             user_repo = UserRepository(session)
-            if user_repo.exists(clean_username, clean_email):
-                raise ValueError("Username or Email already registered.")
+            if user_repo.get_by_email(clean_email):
+                raise ValueError("Email is already registered.")
+            if user_repo.get_by_username(clean_username):
+                raise ValueError("Username is already taken.")
 
             user = User(
                 username=clean_username,
@@ -139,6 +142,13 @@ class AuthenticationService:
                 is_verified=False,
             )
             user_repo.create(user)
+
+            AuditService.log_event(
+                action="USER_REGISTER",
+                target_id=user.id,
+                details=f"Email: {user.email}",
+                session=session
+            )
             return user
 
     def login(
@@ -167,6 +177,10 @@ class AuthenticationService:
 
             if not user or not verify_password(password, user.password_hash):
                 self._record_failed_login(username_or_email)
+                if user:
+                    AuditService.log_event(action="LOGIN_FAILED", actor_id=user.id, status="FAILED", details="Invalid password", session=session)
+                else:
+                    AuditService.log_event(action="LOGIN_FAILED", status="FAILED", details=f"Unknown username_or_email: {username_or_email}", session=session)
                 raise ValueError("Invalid username or password.")
 
             if not user.is_active:
@@ -175,7 +189,7 @@ class AuthenticationService:
             self._reset_failed_logins(username_or_email)
 
             # Generate token strings
-            access_token = create_access_token(user.username)
+            access_token = create_access_token(user)
             refresh_token = secrets.token_urlsafe(64)
 
             # Persist hashed refresh token
@@ -192,11 +206,19 @@ class AuthenticationService:
             )
             token_repo.create(token_model)
 
+            AuditService.log_event(
+                action="USER_LOGIN",
+                actor_id=user.id,
+                details=f"Device: {device_name}",
+                session=session
+            )
+
             return {
                 "access_token": access_token,
                 "refresh_token": refresh_token,
                 "token_type": "bearer",
                 "expires_in": self._settings.access_token_expire_minutes * 60,
+                "auth_state": "AUTHENTICATED",
             }
 
     def refresh_session(
@@ -239,6 +261,13 @@ class AuthenticationService:
             ):
                 # Potential token reuse breach! Revoke everything for this user.
                 token_repo.revoke_all(token_record.user_id)
+                AuditService.log_event(
+                    action="SECURITY_BREACH",
+                    actor_id=token_record.user_id,
+                    status="FAILED",
+                    details="Refresh token reuse detected; all sessions revoked",
+                    session=session
+                )
                 raise ValueError(
                     "Refresh token has been revoked or expired. Security breach detected; all sessions revoked."
                 )
@@ -252,7 +281,7 @@ class AuthenticationService:
             token_repo.revoke(token_record)
 
             # Generate new tokens
-            new_access_token = create_access_token(user.username)
+            new_access_token = create_access_token(user)
             new_refresh_token = secrets.token_urlsafe(64)
 
             # Save new token
@@ -273,6 +302,7 @@ class AuthenticationService:
                 "refresh_token": new_refresh_token,
                 "token_type": "bearer",
                 "expires_in": self._settings.access_token_expire_minutes * 60,
+                "auth_state": "AUTHENTICATED",
             }
 
     def logout(self, refresh_token: str) -> None:
@@ -292,6 +322,11 @@ class AuthenticationService:
             token_record = session.scalar(stmt)
             if token_record and token_record.revoked_at is None:
                 token_repo.revoke(token_record)
+                AuditService.log_event(
+                    action="USER_LOGOUT",
+                    actor_id=token_record.user_id,
+                    session=session
+                )
 
     def logout_all(self, user_id: int) -> None:
         """Revoke all login sessions for a user.
@@ -302,6 +337,7 @@ class AuthenticationService:
         with get_session() as session:
             token_repo = RefreshTokenRepository(session)
             token_repo.revoke_all(user_id)
+            AuditService.log_event(action="LOGOUT_ALL", actor_id=user_id, session=session)
 
     def change_password(
         self, user_id: int, old_password: str, new_password: str
@@ -340,6 +376,11 @@ class AuthenticationService:
             # Revoke all sessions on credential change for safety
             token_repo = RefreshTokenRepository(session)
             token_repo.revoke_all(user_id)
+            AuditService.log_event(
+                action="PASSWORD_CHANGED",
+                actor_id=user_id,
+                session=session
+            )
 
     # =========================================================================
     # SaaS / SaaS Extensions Roadmap Placeholders

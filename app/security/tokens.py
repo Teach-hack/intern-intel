@@ -17,13 +17,13 @@ __all__ = [
 
 
 def create_access_token(
-    subject: str | Any,
+    user: Any,
     expires_delta: timedelta | None = None,
 ) -> str:
     """Create a short-lived access JWT token.
 
     Args:
-        subject: The subject identification (e.g. username).
+        user: The authenticated User object.
         expires_delta: Optional override token expiration length.
 
     Returns:
@@ -36,7 +36,10 @@ def create_access_token(
         expire = now + timedelta(minutes=settings.access_token_expire_minutes)
 
     payload = {
-        "sub": str(subject),
+        "sub": str(user.username),
+        "user_id": user.id,
+        "username": user.username,
+        "role": user.role.value if hasattr(user.role, "value") else str(user.role),
         "exp": int(expire.timestamp()),
         "iat": int(now.timestamp()),
         "iss": settings.jwt_issuer,

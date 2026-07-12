@@ -5,6 +5,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from app.database.user_repository import UserRepository
+from app.database.refresh_token_repository import RefreshTokenRepository
+from app.services.audit_service import AuditService
 from app.database.session import get_session
 from app.models.user import User, UserRole
 
@@ -141,7 +143,16 @@ class UserService:
             user_repo = UserRepository(session)
             user = user_repo.get_by_id(user_id)
             if user:
+                if user.role == UserRole.ADMIN:
+                    admin_count = len([u for u in user_repo.list_users(limit=1000) if u.role == UserRole.ADMIN])
+                    if admin_count <= 1:
+                        raise ValueError("Cannot delete the last remaining administrator account.")
                 user_repo.delete(user)
+                AuditService.log_event(
+                    action="USER_DELETED",
+                    target_id=user_id,
+                    session=session
+                )
 
     def admin_update_user(
         self,
@@ -184,12 +195,25 @@ class UserService:
                     raise ValueError("Email already taken.")
                 user.email = email
 
-            if role is not None:
+            if role is not None and role != user.role:
+                if user.role == UserRole.ADMIN and role != UserRole.ADMIN:
+                    admin_count = len([u for u in user_repo.list_users(limit=1000) if u.role == UserRole.ADMIN])
+                    if admin_count <= 1:
+                        raise ValueError("Cannot demote the last remaining administrator account.")
                 user.role = role
+                # Revoke all sessions since privileges changed
+                token_repo = RefreshTokenRepository(session)
+                token_repo.revoke_all(user_id)
             if is_active is not None:
                 user.is_active = is_active
             if is_verified is not None:
                 user.is_verified = is_verified
 
             user_repo.update(user)
+            AuditService.log_event(
+                action="USER_UPDATED",
+                target_id=user_id,
+                details=f"Updated by admin. New role: {user.role}",
+                session=session
+            )
             return user

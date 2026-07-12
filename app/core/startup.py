@@ -83,4 +83,28 @@ class Startup:
 
         # 4. Initialize and return registry
         registry = create_default_registry(settings=self._settings)
+
+        # 5. Provision default administrator account if it doesn't exist
+        from app.database.session import get_session
+        from app.database.user_repository import UserRepository
+        from app.services.auth_service import AuthenticationService
+        from app.models.user import UserRole
+
+        try:
+            with get_session() as session:
+                user_repo = UserRepository(session)
+                if not user_repo.get_by_username("admin") and not user_repo.get_by_email("admin@internintel.local"):
+                    auth_service = AuthenticationService(self._settings)
+                    auth_service.register(
+                        username="admin",
+                        email="admin@internintel.local",
+                        password="Admin@12345",
+                        role=UserRole.ADMIN,
+                    )
+                    logger.info("Default administrator account successfully provisioned.")
+                else:
+                    logger.debug("Administrator account already exists. Skipping provisioning.")
+        except Exception as exc:
+            logger.error("Failed to provision default administrator account: {}", exc)
+
         return registry

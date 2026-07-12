@@ -7,10 +7,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import (
-    get_admin_user,
     get_db_session,
     get_notification_service,
 )
+from app.security.rbac import Permission, require_permissions
 from app.api.schemas.response import ErrorResponse, NotificationRequest
 from app.models.internship import Internship
 from app.notifications.notification_service import NotificationService
@@ -27,7 +27,7 @@ router = APIRouter(tags=["Notifications"])
         "Retrieve target listings by their database IDs and dispatch "
         "alert notifications using the configured Telegram service."
     ),
-    dependencies=[Depends(get_admin_user)],
+    dependencies=[Depends(require_permissions([Permission.NOTIFICATIONS_DISPATCH]))],
 )
 async def send_notifications(
     request: NotificationRequest,

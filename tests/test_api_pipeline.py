@@ -10,16 +10,19 @@ from fastapi import status
 from fastapi.testclient import TestClient
 
 from app.api.app import app
-from app.api.dependencies import get_admin_user, get_pipeline_service
+from app.api.dependencies import get_current_active_user, get_pipeline_service
 from app.core.exceptions import DatabaseError, ScraperError
 from app.models.internship import Internship
+from app.models.user import UserRole
 from app.services.pipeline_service import PipelineService
 
 
 @pytest.fixture
 def client() -> Generator[TestClient, None, None]:
     """Fixture returning a FastAPI test client."""
-    app.dependency_overrides[get_admin_user] = lambda: MagicMock()
+    mock_user = MagicMock()
+    mock_user.role = UserRole.ADMIN
+    app.dependency_overrides[get_current_active_user] = lambda: mock_user
     try:
         yield TestClient(app)
     finally:

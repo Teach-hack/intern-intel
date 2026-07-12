@@ -50,4 +50,5 @@ dist/
 *.spec
 
 # Jupyter
-.ipynb_checkpoints/
+.ipynb_checkpoints/token.json
+token.json

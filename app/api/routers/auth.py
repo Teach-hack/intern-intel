@@ -5,10 +5,11 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.api.dependencies import (
-    get_admin_user,
     get_current_active_user,
     get_settings,
 )
+from app.security.rbac import Permission, require_permissions
+from app.security.rate_limiter import rate_limit
 from app.api.schemas.auth import (
     AdminUserUpdateRequest,
     ChangePasswordRequest,
@@ -22,7 +23,7 @@ from app.api.schemas.auth import (
 )
 from app.core.logger import logger
 from app.core.settings import Settings
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.services.auth_service import AuthenticationService
 from app.services.user_service import UserService
 
@@ -38,6 +39,7 @@ router = APIRouter(tags=["Authentication & Users"])
 async def register(
     payload: RegisterRequest,
     settings: Settings = Depends(get_settings),
+    _: None = Depends(rate_limit()),
 ) -> User:
     """Register a new user in the platform.
 
@@ -77,6 +79,7 @@ async def register(
 async def login(
     payload: LoginRequest,
     settings: Settings = Depends(get_settings),
+    _: None = Depends(rate_limit()),
 ) -> dict:
     """Verify login parameters and issue access & refresh tokens.
 
@@ -175,6 +178,30 @@ async def logout(
     auth_service.logout(payload.refresh_token)
     logger.info("User logout success")
     return {"detail": "Successfully logged out."}
+
+
+@router.post(
+    "/auth/logout/all",
+    status_code=status.HTTP_200_OK,
+    summary="Revoke all active sessions for the current user",
+)
+async def logout_all(
+    current_user: User = Depends(get_current_active_user),
+    settings: Settings = Depends(get_settings),
+) -> dict:
+    """Invalidate all active refresh tokens for the user across all devices.
+
+    Args:
+        current_user: Active authenticated user.
+        settings: Injected system settings.
+
+    Returns:
+        Detail dict status success.
+    """
+    auth_service = AuthenticationService(settings)
+    auth_service.logout_all(current_user.id)
+    logger.info("User global logout success | user_id={}", current_user.id)
+    return {"detail": "Successfully logged out of all devices."}
 
 
 @router.get(
@@ -304,7 +331,7 @@ async def update_user_me(
 async def admin_list_users(
     skip: int = 0,
     limit: int = 100,
-    current_admin: User = Depends(get_admin_user),
+    current_admin: User = Depends(require_permissions([Permission.USERS_READ])),
     settings: Settings = Depends(get_settings),
 ) -> list[User]:
     """Retrieve lists of stored user accounts.
@@ -331,7 +358,7 @@ async def admin_list_users(
 )
 async def admin_get_user(
     id: int,
-    current_admin: User = Depends(get_admin_user),
+    current_admin: User = Depends(require_permissions([Permission.USERS_READ])),
     settings: Settings = Depends(get_settings),
 ) -> User:
     """Retrieve details for any user account.
@@ -363,7 +390,7 @@ async def admin_get_user(
 async def admin_update_user(
     id: int,
     payload: AdminUserUpdateRequest,
-    current_admin: User = Depends(get_admin_user),
+    current_admin: User = Depends(require_permissions([Permission.USERS_WRITE])),
     settings: Settings = Depends(get_settings),
 ) -> User:
     """Allow administrators to override any parameter for a user.
@@ -378,6 +405,12 @@ async def admin_update_user(
         The updated User profile.
     """
     user_service = UserService(settings)
+    if id == current_admin.id and payload.role and payload.role != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You cannot demote your own admin account.",
+        )
+
     try:
         updated = user_service.admin_update_user(
             user_id=id,
@@ -407,7 +440,7 @@ async def admin_update_user(
 )
 async def admin_delete_user(
     id: int,
-    current_admin: User = Depends(get_admin_user),
+    current_admin: User = Depends(require_permissions([Permission.USERS_DELETE])),
     settings: Settings = Depends(get_settings),
 ) -> dict:
     """Permanently delete a user account from database.
@@ -420,6 +453,12 @@ async def admin_delete_user(
     Returns:
         Detail dict status success.
     """
+    if id == current_admin.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You cannot delete your own admin account.",
+        )
+
     user_service = UserService(settings)
     user_service.delete_user(id)
     logger.info(
